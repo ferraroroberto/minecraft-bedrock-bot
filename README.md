@@ -10,12 +10,55 @@ Before running anything here, the bot's Microsoft account must be **invited as a
 
 ## Setup
 
-Requires Node.js (this repo currently runs on the Mac Mini at `roberto@192.168.0.14`, which has Node 26.5.0 via Homebrew).
+Requires Node.js. Verified on the Windows tower (x64, Node 24) and the Mac Mini at `roberto@192.168.0.14` (Apple Silicon, macOS 26, Node 26.5.0 via Homebrew).
 
 ```bash
 npm install
 cp .env.example .env
 # edit .env — leave REALM_ID blank on the very first run
+```
+
+`npm install` runs a `postinstall` hook that applies `patches/bedrockx+1.3.4.patch` via [patch-package](https://github.com/ds300/patch-package). **This is required on macOS** — see [Cross-machine setup](#cross-machine-setup) — and is a harmless no-op elsewhere. Never bypass it with `--ignore-scripts`.
+
+## Cross-machine setup
+
+The repo is designed to be brought up from a clean clone on **either** machine. Three things are deliberately *not* shared, and each has a reason:
+
+| Thing | Shared? | Why |
+|---|---|---|
+| Source code | ✅ via git | Normal. |
+| `node_modules/` | ❌ per machine | Contains **platform-specific native binaries** (`@roamhq/wrtc`, and BedrockX's raknet binding). Copying it between Windows and macOS produces exactly the `dlopen` crash the patch exists to avoid. Always `npm install` per host. |
+| `.env` | ❌ per machine | Gitignored. Two lines; recreate from `.env.example`. |
+| `.secrets/xbox-auth/` | ❌ per machine | Holds **live, reusable Xbox Live tokens**. Each machine does its own one-time device-code sign-in, so credentials never travel and there is no sync machinery to leak, corrupt, or go stale. |
+
+**Only one machine can be connected at a time** — see the `server_id_conflict` note under [Gotchas](#gotchas-worth-knowing). Running on either host is a development convenience, never simultaneous operation.
+
+### Bringing up a new machine
+
+```bash
+git clone https://github.com/ferraroroberto/minecraft-bedrock-bot.git
+cd minecraft-bedrock-bot
+npm install                       # postinstall applies the bedrockx patch
+printf 'BOT_USERNAME=Gizmo6082\nREALM_ID=29251526\n' > .env
+npm run spike                     # prints a device code; sign in once in any browser
+```
+
+### macOS: the BedrockX raknet patch
+
+BedrockX ships two committed prebuilt native binaries — `src/raknet/raknet.node` (Linux x86-64 ELF) and `src/raknet/win-raknet.node` (Windows PE32+) — and `binding.js` picks between exactly those two, falling through to the **Linux** one on any non-`win32` platform. On macOS that `dlopen` fails with `slice is not valid mach-o file` and the process dies at module load, before any network activity.
+
+We never use RakNet (this Realm is NetherNet), so `patches/bedrockx+1.3.4.patch` simply moves the `RakClient` require inside the `case "DEFAULT"` branch where it's actually used — mirroring what BedrockX's own `server.js` already does. The `DEFAULT` (legacy `ip:port`) transport remains unsupported on macOS, which is fine until such a Realm actually appears.
+
+If the pinned BedrockX commit is ever changed, the patch must be regenerated (`npx patch-package bedrockx`). It fails loudly rather than silently no-opping.
+
+### Running over SSH
+
+Non-interactive SSH does **not** get Homebrew on `PATH`, so `node` appears missing:
+
+```bash
+ssh roberto@192.168.0.14
+export PATH=/opt/homebrew/bin:$PATH   # or use absolute /opt/homebrew/bin/node
+cd ~/minecraft-bedrock-bot
 ```
 
 ## Running the connect spike
@@ -66,7 +109,8 @@ Realms have been migrating to **NetherNet**, Microsoft's WebRTC-based transport.
 
 These each cost real debugging time; they are not obvious from any documentation.
 
-- **One connection per Xbox account, ever.** A second simultaneous connection as the same account gets an immediate `server_id_conflict` kick — including when the account is signed into the Minecraft client on a console/PC. After killing a bot process, the server needs a few seconds to release the session before a reconnect succeeds.
+- **One connection per Xbox account, ever.** A second simultaneous connection as the same account gets an immediate `server_id_conflict` kick — including when the account is signed into the Minecraft client on a console/PC. After killing a bot process the server holds the old session for a while: measured, an **8-second** gap still gets kicked and a **30-second** gap reconnects cleanly. Any future supervisor needs a single-instance guard and a reconnect backoff, not a tight retry loop.
+- **The Realms API returns transient `503 Service Unavailable`.** Seen immediately after a fresh device-code sign-in, and it currently crashes the spike with an unhandled rejection out of `prismarine-realms`' `rest.js`. Retrying a few seconds later succeeded unchanged. Retry/backoff is deliberately not implemented yet (out of scope for the connect spike) — a long-running bot will need it.
 - **`set_local_player_as_initialized` must be sent on spawn.** BedrockX's `createClient` never sends it (upstream `bedrock-protocol` does). Without it the server never treats the player as fully joined and drops the connection within seconds of spawning.
 - **Outgoing chat needs `category: 'authored'`.** Sending `'message_only'` serializes and round-trips perfectly through the protocol definition, but makes the server silently drop the connection ~16 seconds later. The field shape used here mirrors a real inbound chat packet captured off the wire.
 - **Chat source names carry formatting codes.** The server appends `§r` (e.g. `Roberto39764§r`), so naive `source_name === username` comparisons fail — strip `§.` first.

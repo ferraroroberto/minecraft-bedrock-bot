@@ -1,0 +1,23 @@
+diff --git a/node_modules/bedrockx/src/client.js b/node_modules/bedrockx/src/client.js
+index 76c16a3..e63b8ca 100644
+--- a/node_modules/bedrockx/src/client.js
++++ b/node_modules/bedrockx/src/client.js
+@@ -1,7 +1,6 @@
+ const { ClientStatus, Connection } = require('./connection')
+ const { createDeserializer, createSerializer } = require('./transforms/serializer')
+ const { NethernetClient } = require('./nethernet')
+-const { RakClient } = require('./rak')
+ const { authenticate } = require('./client/auth')
+ const { NethernetSignal } = require('./websocket/signal')
+ const { NethernetJSONRPC } = require('./websocket/signal-jsonrpc')
+@@ -60,6 +59,10 @@ class Client extends Connection {
+                 this.nethernet.signalling.on('signal', signal => this.connection.nethernet.handleSignal(signal))
+                 break;
+             case "DEFAULT":
++                // Required lazily: BedrockX ships only Linux/Windows raknet binaries,
++                // so a top-level require crashes on macOS even for NetherNet realms
++                // that never touch RakNet. Mirrors the lazy require in server.js.
++                const { RakClient } = require('./rak')
+                 this.connection = new RakClient({ host: this.options.host, port: this.options.port })
+ 
+                 this.batchHeader = 0xfe
