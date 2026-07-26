@@ -4,4 +4,5 @@
 # description, exposed services). Schema: fleet-config/architecture/README.md.
 layer       = "working-pipe"
 icon        = "⛏️"
-description = "AI-controllable bot client for a Minecraft Bedrock Realm."
+description = "Headless Node bot that joins a Minecraft Bedrock Realm over NetherNet."
+tag         = ["→", "Minecraft Realm"]
