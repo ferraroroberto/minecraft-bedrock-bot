@@ -9,8 +9,10 @@
     "spike": "node scripts/connect-spike.js"
   },
   "dependencies": {
-    "bedrock-protocol": "^3.57.0",
-    "dotenv": "^16.4.5"
+    "bedrockx": "github:thejfkvis/BedrockX#f4a43da64753edd678af039be346decf63802301",
+    "dotenv": "^16.4.5",
+    "prismarine-auth": "^3.1.1",
+    "prismarine-realms": "^1.6.0"
   },
   "license": "MIT",
   "repository": {
