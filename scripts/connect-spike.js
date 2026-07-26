@@ -15,6 +15,7 @@ import path from 'node:path'
 import authPkg from 'prismarine-auth'
 import realmsPkg from 'prismarine-realms'
 import bedrockx from 'bedrockx'
+import { stripFormatting } from '../src/formatting.js'
 
 const { Authflow, Titles } = authPkg
 const { RealmAPI } = realmsPkg
@@ -30,9 +31,6 @@ const profilesFolder = path.join(__dirname, '..', '.secrets', 'xbox-auth')
 
 const username = process.env.BOT_USERNAME || 'MinecraftBot'
 const realmId = process.env.REALM_ID
-
-// The server appends formatting codes (e.g. "Name§r") to chat source names.
-const stripFormatting = (s) => String(s ?? '').replace(/§./g, '')
 
 const authflow = new Authflow(username, profilesFolder, {
   authTitle: Titles.MinecraftNintendoSwitch,

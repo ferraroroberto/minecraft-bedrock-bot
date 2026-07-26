@@ -87,6 +87,16 @@ Expected output:
 
 Stop it with Ctrl-C; it stays connected indefinitely otherwise.
 
+## Verification
+
+```bash
+npm run verify
+```
+
+One pass/fail gate, fail-fast: `node --check` over every `.js` in `src/` and `scripts/`, then `node --test` over `test/`. Plain node — no PowerShell, no bash-isms — so it runs identically on both hosts. Run it before shipping anything.
+
+**It is offline by design and does not prove the bot can connect.** A live test is impossible here: it would need an interactive Microsoft sign-in and a per-machine token cache, and since only one connection can exist per Xbox account it would kick the real bot off the Realm (see [Gotchas](#gotchas-worth-knowing)). So a green gate means *"nothing pure is broken"* — **any change to the connect path still needs a manual `npm run spike`** against the live Realm.
+
 ## Why BedrockX and not `bedrock-protocol`
 
 The obvious library for this is PrismarineJS's [`bedrock-protocol`](https://github.com/PrismarineJS/bedrock-protocol). **It cannot connect to this Realm.**
@@ -127,4 +137,4 @@ npm run spike
 # detach with Ctrl-A D; reattach later with: screen -r mcbot
 ```
 
-Note that BedrockX pulls in `@roamhq/wrtc`, a native WebRTC binding. It installs from a prebuilt binary on Windows x64; the Mac Mini leg is not yet verified.
+Note that BedrockX pulls in `@roamhq/wrtc`, a native WebRTC binding. It installs from a prebuilt binary on both Windows x64 and Apple Silicon — verified working on the Mac Mini. The macOS problem is BedrockX's *own* raknet binary, not this one; see [the patch](#macos-the-bedrockx-raknet-patch).

@@ -7,7 +7,8 @@
   "main": "src/index.js",
   "scripts": {
     "postinstall": "patch-package",
-    "spike": "node scripts/connect-spike.js"
+    "spike": "node scripts/connect-spike.js",
+    "verify": "node scripts/verify.js"
   },
   "dependencies": {
     "bedrockx": "github:thejfkvis/BedrockX#f4a43da64753edd678af039be346decf63802301",
