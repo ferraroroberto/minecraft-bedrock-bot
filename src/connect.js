@@ -115,6 +115,7 @@ export async function runSession({
   context,
   connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS,
   stopSignal = null,
+  faultSignal = null,
   now = () => Date.now(),
 }) {
   const { realm, join, transport } = await resolveRealm({ api, realmId, context })
@@ -135,12 +136,14 @@ export async function runSession({
     let selfXuid = ''
     let connectTimer = null
     let unsubscribeStop = null
+    let unsubscribeFault = null
 
     const finish = (endedBy, reason) => {
       if (settled) return
       settled = true
       clearTimeout(connectTimer)
       unsubscribeStop?.()
+      unsubscribeFault?.()
       // Only close if the library has not already done so. A second close()
       // throws a TypeError on the NetherNet path (see the header note).
       if (!libraryClosed) {
@@ -162,6 +165,10 @@ export async function runSession({
     // between attempts would make a healthy bot ignore SIGINT until it happened
     // to disconnect, which on a stable connection is never.
     unsubscribeStop = stopSignal?.onStop?.(() => finish('shutdown', 'stop requested'))
+
+    // A process-level signalling fault ends the session THROUGH finish(), so
+    // the client is closed and its timers cleared rather than left leaking.
+    unsubscribeFault = faultSignal?.onFault?.(() => finish('signalling_fault', 'signalling_fault'))
 
     connectTimer = setTimeout(() => {
       if (connectedAt === null) finish('connect_timeout', `no spawn within ${connectTimeoutMs}ms`)

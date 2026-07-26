@@ -88,6 +88,8 @@ export async function main() {
   const faultGuard = createFaultGuard({ log })
   const backoff = createBackoff()
 
+  // Stray faults from torn-down clients are swallowed only inside this window.
+  faultGuard.setSupervising(true)
   try {
     return await supervise({
       log,
@@ -95,22 +97,22 @@ export async function main() {
       backoff,
       stopSignal,
       runSession: () =>
-        faultGuard.guard(
-          runSession({
-            api,
-            createClient,
-            authflow,
-            username,
-            profilesFolder,
-            realmId: process.env.REALM_ID,
-            version,
-            log,
-            context,
-            stopSignal,
-          })
-        ),
+        runSession({
+          api,
+          createClient,
+          authflow,
+          username,
+          profilesFolder,
+          realmId: process.env.REALM_ID,
+          version,
+          log,
+          context,
+          stopSignal,
+          faultSignal: faultGuard.faultSignal,
+        }),
     })
   } finally {
+    faultGuard.setSupervising(false)
     faultGuard.dispose()
     process.off('SIGINT', sigint)
     process.off('SIGTERM', sigterm)

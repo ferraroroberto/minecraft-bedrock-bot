@@ -97,3 +97,42 @@ test('defaultIsAlive reports true for this process and false for an unused pid',
   // 2^22 is above every platform's default pid_max, so it cannot be in use.
   assert.equal(defaultIsAlive(4194304), false)
 })
+
+test('an EMPTY lock file is NOT stolen from a live holder mid-write', (t) => {
+  // The TOCTOU this closes: acquireLock creates the file with `wx` and writes
+  // the PID as a SEPARATE syscall, so a live holder's lock is briefly empty on
+  // disk. Treating empty as reclaimable garbage let a second process delete a
+  // live lock and connect alongside it — the exact double-connect the lock
+  // exists to prevent.
+  //
+  // The holder is another PROCESS, so its write lands independently of our
+  // event loop; `readPid` is injected to model that deterministically (a
+  // setTimeout could not fire, since the settle loop blocks synchronously).
+  const lockPath = tempLockPath(t)
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true })
+  fs.writeFileSync(lockPath, '') // holder caught between open and write
+
+  let reads = 0
+  const readPid = () => (++reads >= 3 ? 1111 : null) // holder finishes writing
+
+  let err
+  try {
+    acquireLock(lockPath, { pid: 2222, isAlive: () => true, readPid })
+  } catch (caught) {
+    err = caught
+  }
+  assert.ok(err instanceof LockHeldError, 'must refuse, not steal the lock')
+  assert.equal(err.holderPid, 1111)
+  assert.equal(fs.readFileSync(lockPath, 'utf8'), '', "holder's lock must not be deleted")
+})
+
+test('a lock that stays empty IS reclaimed, so a crash mid-write is recoverable', (t) => {
+  // The other side of the same coin: if nobody ever writes a PID, the file is
+  // genuinely garbage and must not deadlock the bot forever.
+  const lockPath = tempLockPath(t)
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true })
+  fs.writeFileSync(lockPath, '')
+  const handle = acquireLock(lockPath, { pid: 3333, isAlive: () => true })
+  assert.equal(fs.readFileSync(lockPath, 'utf8'), '3333')
+  handle.release()
+})

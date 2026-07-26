@@ -57,24 +57,28 @@ export function defaultIsAlive(pid) {
  * @returns {{ release: () => void, path: string }}
  * @throws {LockHeldError} if a live process holds it
  */
-export function acquireLock(lockPath, { pid = process.pid, isAlive = defaultIsAlive } = {}) {
+export function acquireLock(
+  lockPath,
+  { pid = process.pid, isAlive = defaultIsAlive, readPid = readHolderPid } = {}
+) {
   fs.mkdirSync(path.dirname(lockPath), { recursive: true })
 
-  // Two passes at most: the second only ever runs after a stale lock is cleared,
-  // so this cannot spin.
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  // A few passes: each EEXIST is either refused outright or resolved by
+  // reclaiming one stale lock, so this converges rather than spinning.
+  for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt += 1) {
     try {
       const fd = fs.openSync(lockPath, 'wx')
-      fs.writeSync(fd, String(pid))
-      fs.closeSync(fd)
+      try {
+        fs.writeSync(fd, String(pid))
+      } finally {
+        fs.closeSync(fd)
+      }
       return makeHandle(lockPath, pid)
     } catch (err) {
       if (err.code !== 'EEXIST') throw err
 
-      const holderPid = readHolderPid(lockPath)
+      const holderPid = readHolderPidSettled(lockPath, readPid)
 
-      // An unreadable/garbage lock file can never be matched to a live process,
-      // so treat it as stale rather than deadlocking on it forever.
       if (holderPid !== null && holderPid !== pid && isAlive(holderPid)) {
         throw new LockHeldError(holderPid, lockPath)
       }
@@ -89,7 +93,38 @@ export function acquireLock(lockPath, { pid = process.pid, isAlive = defaultIsAl
     }
   }
 
-  throw new Error(`could not acquire lock at ${lockPath} after reclaiming a stale one`)
+  throw new Error(
+    `could not acquire lock at ${lockPath} after ${MAX_ACQUIRE_ATTEMPTS} attempts — ` +
+    `something is repeatedly recreating it`
+  )
+}
+
+const MAX_ACQUIRE_ATTEMPTS = 4
+/** How long to let a just-created lock file get its PID written before judging it garbage. */
+const SETTLE_WINDOW_MS = 250
+
+/**
+ * Read the holder PID, tolerating a lock file caught mid-creation.
+ *
+ * `acquireLock` creates the file with `wx` and writes the PID as a separate
+ * syscall, so for a brief moment a LIVE holder's lock is empty on disk. Treating
+ * empty as "garbage, reclaim it" would let a second process delete a live
+ * holder's lock and acquire alongside it — the exact double-connect the lock
+ * exists to prevent. So an empty file is re-read across a short window before
+ * being written off; only a file that stays unreadable is genuinely stale.
+ */
+function readHolderPidSettled(lockPath, readPid) {
+  const deadline = Date.now() + SETTLE_WINDOW_MS
+  for (;;) {
+    const pid = readPid(lockPath)
+    if (pid !== null) return pid
+    // Gone entirely — the holder released it; nothing to reclaim.
+    if (!fs.existsSync(lockPath)) return null
+    if (Date.now() >= deadline) return null
+    // Synchronous pause: this runs at most once, at startup, before anything
+    // is connected, so blocking briefly is simpler and safer than going async.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+  }
 }
 
 function readHolderPid(lockPath) {

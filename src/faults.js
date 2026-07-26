@@ -13,39 +13,54 @@
 //      it, so a rejection from the signalling connect (15s credentials
 //      timeout, or 5 exhausted reconnects) becomes an unhandled rejection.
 //
-// So the supervisor cannot rely on `close`/`kick`/`error` alone: without this
-// net, a signalling failure is a silent process death mid-session — exactly the
-// unattended failure mode #7 exists to eliminate.
+// Design notes, both learned from review:
 //
-// This deliberately does NOT swallow faults globally. It only converts a fault
-// into a session-ended result while a session is actually in flight; outside
-// that window the fault is re-thrown so a genuine bug still crashes loudly.
+//   - A fault does NOT abandon the in-flight session promise. It calls the
+//     session's own finisher, so `runSession` closes its client and settles
+//     normally. Racing-and-abandoning would leave the client's listeners and
+//     signalling timers alive, and those leaked timers are themselves a source
+//     of later faults attributed to the *next* session.
+//   - While the supervisor is running, a fault arriving with NO session in
+//     flight (i.e. during a backoff sleep) is logged and swallowed, NOT
+//     re-thrown. Re-throwing from inside a `process.on('uncaughtException')`
+//     handler kills the process — which is exactly the unattended death this
+//     module exists to prevent. The stray fault necessarily comes from an
+//     already-torn-down client, since the bot is the only async work running.
+//   - Outside the supervisor's lifetime there is nothing to protect, so a fault
+//     is re-thrown and crashes loudly as it normally would.
 
 /**
  * @param {object} deps
  * @param {object} deps.log
  * @param {NodeJS.EventEmitter} [deps.proc] injectable for tests
- * @returns {{ guard: <T>(promise: Promise<T>) => Promise<T|object>, dispose: () => void }}
  */
 export function createFaultGuard({ log, proc = process }) {
-  /** Set while a session is in flight; null otherwise. */
-  let active = null
+  /** Finishers for sessions currently in flight. Normally 0 or 1. */
+  const sessionHandlers = new Set()
+  let supervising = false
 
   const onFault = (label) => (err) => {
     const detail = String(err?.stack ?? err?.message ?? err)
-    if (!active) {
-      // Nothing in flight — this is not a connection fault we can absorb.
-      // Re-throwing preserves normal crash behaviour for real bugs.
-      log.error(`${label}.unhandled`, detail)
-      throw err
+
+    if (sessionHandlers.size > 0) {
+      log.error(
+        `${label}.absorbed`,
+        `${detail} — ending the session (known BedrockX signalling defect, see src/faults.js)`
+      )
+      // Copy first: each handler removes itself from the set as it settles.
+      for (const handler of [...sessionHandlers]) handler(detail)
+      return
     }
-    log.error(
-      `${label}.absorbed`,
-      `${detail} — treating as a connection failure (known BedrockX signalling defect, see src/faults.js)`
-    )
-    const settle = active
-    active = null
-    settle({ endedBy: label, reason: 'signalling_fault', connected: false, uptimeMs: 0 })
+
+    if (supervising) {
+      // Between attempts. A leaked timer from a torn-down client, not a live
+      // session — never let it kill an unattended bot mid-backoff.
+      log.error(`${label}.stray`, `${detail} — no session in flight, ignoring (leaked from a closed client)`)
+      return
+    }
+
+    log.error(`${label}.unhandled`, detail)
+    throw err
   }
 
   const uncaught = onFault('uncaughtException')
@@ -54,18 +69,20 @@ export function createFaultGuard({ log, proc = process }) {
   proc.on('unhandledRejection', unhandled)
 
   return {
-    /** Race a session against a process-level fault. */
-    async guard(promise) {
-      const faulted = new Promise((resolve) => {
-        active = resolve
-      })
-      try {
-        return await Promise.race([promise, faulted])
-      } finally {
-        active = null
-      }
+    /** Signal shape consumed by runSession — mirrors stopSignal's onStop. */
+    faultSignal: {
+      onFault(cb) {
+        sessionHandlers.add(cb)
+        return () => sessionHandlers.delete(cb)
+      },
+    },
+    /** Mark the supervised window, within which stray faults are swallowed. */
+    setSupervising(value) {
+      supervising = value
     },
     dispose() {
+      sessionHandlers.clear()
+      supervising = false
       proc.off('uncaughtException', uncaught)
       proc.off('unhandledRejection', unhandled)
     },
