@@ -1,0 +1,20 @@
+{
+  "name": "minecraft-bedrock-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-controllable bot client for Roberto's Minecraft Bedrock Realm.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "spike": "node scripts/connect-spike.js"
+  },
+  "dependencies": {
+    "bedrock-protocol": "^3.57.0",
+    "dotenv": "^16.4.5"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ferraroroberto/minecraft-bedrock-bot.git"
+  }
+}
