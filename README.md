@@ -85,7 +85,27 @@ Expected output:
 [chat<-] +28.2s Roberto39764: hello there
 ```
 
-Stop it with Ctrl-C; it stays connected indefinitely otherwise.
+Stop it with Ctrl-C; it stays connected indefinitely otherwise, reconnecting on its own.
+
+### Supervision
+
+The bot is no longer a straight-line script — it runs a supervised loop that survives the failure modes above unattended.
+
+- **Reconnect backoff** is per-condition. `server_id_conflict` starts at **30s** (the measured session-release window) and escalates 30 → 60 → 120 → 240 → 300s; an ordinary disconnect uses a shorter 5 → 15 → 30 → 60 → 120s ladder; API failures use their own. Jitter is added **upward only** — 30s is an empirical *lower* bound, so jittering below it would reintroduce the kick.
+- **The failure streak resets only after a connection has stayed up for 60s**, so a connection that establishes and immediately drops can never turn into a tight loop. After 10 consecutive failures without a stable connection it gives up and exits non-zero rather than looping silently.
+- **A single-instance lock** at `.secrets/bot.lock` holds the running PID. A second start on the same machine exits immediately, names the holder, and never touches it. A stale lock left by a `kill -9` is reclaimed automatically. It **cannot** see the Minecraft client signed in as the bot account, or a bot on the *other* machine — `server_id_conflict` handling is the real backstop for those.
+- **The client version is resolved from `minecraft-data`** rather than hardcoded, so it cannot announce a version the client can't actually speak. Override deliberately with `MC_VERSION` **and** `PROTOCOL_VERSION` together.
+
+**Exit codes** — so a `launchd`/`systemd` wrapper can tell "restart me" from "give up":
+
+| Code | Meaning |
+|---|---|
+| `0` | clean shutdown (Ctrl-C / SIGTERM) |
+| `1` | terminal failure — expired auth, rejected client version, not a Realm member. Retrying cannot fix it; the log says what to do |
+| `2` | another instance holds the lock |
+| `3` | gave up after 10 consecutive failures without a stable connection |
+
+Actual daemonization (a `launchd` plist, auto-start at boot, log rotation) is deliberately **not** included — this makes a foreground process survive its own failures and exit legibly, which is exactly the precondition such a wrapper needs.
 
 ## Verification
 
@@ -119,8 +139,11 @@ Realms have been migrating to **NetherNet**, Microsoft's WebRTC-based transport.
 
 These each cost real debugging time; they are not obvious from any documentation.
 
-- **One connection per Xbox account, ever.** A second simultaneous connection as the same account gets an immediate `server_id_conflict` kick — including when the account is signed into the Minecraft client on a console/PC. After killing a bot process the server holds the old session for a while: measured, an **8-second** gap still gets kicked and a **30-second** gap reconnects cleanly. Any future supervisor needs a single-instance guard and a reconnect backoff, not a tight retry loop.
-- **The Realms API returns transient `503 Service Unavailable`.** Seen immediately after a fresh device-code sign-in, and it currently crashes the spike with an unhandled rejection out of `prismarine-realms`' `rest.js`. Retrying a few seconds later succeeded unchanged. Retry/backoff is deliberately not implemented yet (out of scope for the connect spike) — a long-running bot will need it.
+- **One connection per Xbox account, ever.** A second simultaneous connection as the same account gets an immediate `server_id_conflict` kick — including when the account is signed into the Minecraft client on a console/PC. After killing a bot process the server holds the old session for a while: measured, an **8-second** gap still gets kicked and a **30-second** gap reconnects cleanly. Handled: the supervisor treats `server_id_conflict` as its own condition with a ladder starting at 30s, and a lock file stops two local processes starting at all.
+- **The Realms API returns transient `503 Service Unavailable`.** Seen immediately after a fresh device-code sign-in. Note `prismarine-realms` **already retries 5xx itself** — 4 times, 1/2/4/8s ≈ 15s — so a 503 that reaches us has already been failing for ~15s. It does **not** retry `fetch`-level network errors (DNS, socket resets); those throw before its status check, and the supervisor is the only thing handling them. Both are now retried with backoff instead of crashing the process.
+- **A rejected client version is a `400`, not a `5xx`** — measured: `400 Bad Request {"errorCode":6020,...}` returned in 247ms, so it burns none of the retry budget. The version gate applies only to `/worlds/{id}/join`; listing Realms accepts any version.
+- **BedrockX can kill the process without emitting anything you can catch.** `websocket/signal-jsonrpc.js:134` calls `this.client.emit(...)` where `this.client` is never assigned, so any websocket-level error on the `NETHERNET_JSONRPC` transport throws a `TypeError` inside a callback; and `createClient.js:7` calls `client.init()` without awaiting or catching it, so a signalling failure becomes an unhandled rejection. Neither reaches a `client.on('error')` handler. `src/faults.js` installs the process-level net that turns these into ordinary reconnects.
+- **Never call `client.close()` on a client the library already closed.** `close()` nulls `this.nethernet` at `client.js:156` but reads `this.nethernet.signalling` at `:155`, so a second close throws. On a kick the library emits `kick` and then closes itself, so one disconnect arrives as two events.
 - **`set_local_player_as_initialized` must be sent on spawn.** BedrockX's `createClient` never sends it (upstream `bedrock-protocol` does). Without it the server never treats the player as fully joined and drops the connection within seconds of spawning.
 - **Outgoing chat needs `category: 'authored'`.** Sending `'message_only'` serializes and round-trips perfectly through the protocol definition, but makes the server silently drop the connection ~16 seconds later. The field shape used here mirrors a real inbound chat packet captured off the wire.
 - **Chat source names carry formatting codes.** The server appends `§r` (e.g. `Roberto39764§r`), so naive `source_name === username` comparisons fail — strip `§.` first.
