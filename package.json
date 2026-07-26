@@ -6,6 +6,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "postinstall": "patch-package",
     "spike": "node scripts/connect-spike.js"
   },
   "dependencies": {
@@ -18,5 +19,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/ferraroroberto/minecraft-bedrock-bot.git"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   }
 }
