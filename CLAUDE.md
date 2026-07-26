@@ -272,6 +272,10 @@ Decisions recorded so they are not re-litigated (rationale in issue #8):
 - **No CI, deliberately.** CI is advisory in this fleet, and its only documented signal beyond the local gate is an e2e suite — which this repo cannot have (see the credential/`server_id_conflict` wall above). It would duplicate the gate and add nothing. If it is ever added, follow the pinned shape in the "GitHub Actions CI conventions" section above, with `actions/setup-node@v6`, and write a `## CI expectations` block at that point — not before.
 - **No packet-serialization round-trip tests.** The repo's own evidence says they would be false confidence: the `category: 'message_only'` bug round-tripped through the protocol definition *perfectly* and still made the server drop the connection ~16 s later. The real failure modes here are server-side semantics only a live connection reveals.
 
-### Restart recipe: **N/A**
+### Restart recipe: a foreground CLI, **not** a tray
 
-There is no long-lived process, no service port, no tray, and no `/api/version` build-identity endpoint — so the scaffold's "Restart and verify before hand-off" section does not fire, and nothing above it should be hand-rolled into one. `npm run spike` is a **foreground** process stopped with Ctrl-C. Do not invent a `taskkill`/port-reclaim recipe for a process that does not exist. (Revisit only if a supervised long-running bot lands — and even then it is a foreground CLI, not a tray.)
+`npm run spike` is now long-lived (it supervises and reconnects, #7), but it is still a **foreground process with no service port, no tray, and no `/api/version` endpoint**. The scaffold's tray lifecycle — `tray.bat --restart`, orphan-proof port reclaim by PID, the named-mutex guard — does **not** apply and must not be hand-rolled here. There is no port to reclaim.
+
+To restart: stop it with **Ctrl-C** (or `kill <pid>`, where the PID is in `.secrets/bot.lock`) and start it again. Never a blanket `node`/`taskkill` sweep — that would take down unrelated Node processes on the machine.
+
+The single-instance lock makes this safe: a second start refuses immediately and names the holder rather than fighting it for the one available Xbox session, and a stale lock from a hard kill is reclaimed automatically. **Wait ~30s between stopping and restarting** — the server holds the old session, and a faster restart gets `server_id_conflict` (the supervisor handles this correctly, it just costs a backoff cycle).
