@@ -61,8 +61,10 @@ if (!tests.length) {
   process.exit(1)
 }
 
+// --test-timeout so a test that hangs (an async session that never settles)
+// fails loudly instead of wedging the gate until someone kills it.
 console.log(`[verify] stage 2/2 — node --test over ${tests.length} file(s)`)
-if (!run(['--test', ...tests])) {
+if (!run(['--test', '--test-timeout=15000', ...tests])) {
   console.error('[verify] FAILED — tests did not pass')
   process.exit(1)
 }
