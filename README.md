@@ -8,9 +8,13 @@ AI-controllable bot client for Roberto's Minecraft **Bedrock Edition** Realm.
 
 Before running anything here, the bot's Microsoft account must be **invited as a member of the Realm** (Minecraft/Xbox app → Realm → Settings → Invite). This is a manual step outside this repo — nothing here can do it for you.
 
+## Development vs. deployment
+
+Active development and testing happen on Roberto's Windows box (`E:\automation\minecraft-bedrock-bot`), where this repo shows up alongside the rest of the fleet's projects. A second clone lives on the Mac Mini (`roberto@192.168.0.14`, always-on) as the intended **production** host once this is stable — code isn't actively edited there; it's updated with a `git pull` once a change is verified from the dev machine.
+
 ## Setup
 
-Requires Node.js (this repo currently runs on the Mac Mini at `roberto@192.168.0.14`, which has Node 26.5.0 via Homebrew).
+Requires Node.js (present on both the Windows dev machine and the Mac Mini, which has Node 26.5.0 via Homebrew).
 
 ```bash
 npm install
@@ -30,11 +34,12 @@ With `REALM_ID` left blank, the spike uses `pickRealm`, which lists the bot acco
 
 Console output walks through: Xbox Live session established → joined the Realm → spawned → a logged position (exact source logged as raw packets, since `bedrock-protocol` has no guaranteed convenience property for this — see the code comment in `scripts/connect-spike.js`).
 
-## Running it on the Mac Mini
+## Running it on the Mac Mini (production, once verified)
 
 ```bash
 ssh roberto@192.168.0.14
 cd ~/minecraft-bedrock-bot
+git pull
 screen -S mcbot   # tmux isn't installed there; screen keeps the sign-in prompt alive across an SSH hiccup
 npm run spike
 # detach with Ctrl-A D; reattach later with: screen -r mcbot
