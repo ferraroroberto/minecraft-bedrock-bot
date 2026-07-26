@@ -1,0 +1,25 @@
+# Secrets — never commit
+.env
+
+# Xbox Live / MSA token cache written by prismarine-auth via bedrock-protocol's
+# createClient `profilesFolder` option — holds live, reusable Xbox Live tokens
+# for the bot's Microsoft account. NEVER commit.
+.secrets/
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+dist/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Claude Code local settings ---
+.claude/
+
+# --- Codex / other-agent local artifacts ---
+.agents/
+.codex/
