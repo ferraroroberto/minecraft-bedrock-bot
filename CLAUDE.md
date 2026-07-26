@@ -253,5 +253,25 @@ After the verification step — and unless I said otherwise — restart that pro
 ---
 
 ## This repository
-Node.js client that authenticates a second Microsoft/Xbox account and joins Roberto's Minecraft Bedrock Realm via `bedrock-protocol`.
-See `README.md` for setup, layout, and usage.
+
+Node.js (ESM) client that authenticates a second Microsoft/Xbox account and joins Roberto's Minecraft Bedrock Realm via **[BedrockX](https://github.com/thejfkvis/BedrockX)**, pinned by commit in `package.json`. Not `bedrock-protocol` — that library **cannot connect to this Realm at all**, because the Realm has migrated to NetherNet (`NETHERNET_JSONRPC`) and `bedrock-protocol` speaks only RakNet for Realms. See README → "Why BedrockX and not `bedrock-protocol`" before touching the connect path. `README.md` has setup, layout, usage, and the hard-won protocol gotchas.
+
+Two hosts: the Windows tower (dev) and the Mac Mini at `roberto@192.168.0.14` (Apple Silicon, the intended unattended **production** host). Anything added here must run on both.
+
+### Verification
+
+**The gate is `npm run verify`.** One command, fail-fast, two stages: `node --check` over every `.js` under `src/` and `scripts/` (the byte-compile stage), then `node --test` over `test/`. It must exit 0 before anything ships.
+
+**The gate is offline and cannot ever be an integration test.** Reaching the Realm needs a live Realm, an invited Microsoft account, an interactive device-code sign-in, and a per-machine token cache that by design never leaves the host — and there is only **one connection per Xbox account, ever**, so a test that connected would kick the real bot with `server_id_conflict`. A green gate therefore means *"nothing pure is broken"*, **not** *"the bot can still reach the Realm"*. **Any change to the connect path still needs a manual `npm run spike` against the live Realm**, with the bot account signed out everywhere else. Never report a connect-path change verified on the gate alone.
+
+Decisions recorded so they are not re-litigated (rationale in issue #8):
+
+- **Test runner: `node --test`**, not vitest — zero new dependencies, native ESM, no config. The three fleet repos on vitest all test browser-side DOM modules, which does not transfer to a headless CLI. This matters more than usual here: the dependency tree already carries a single-maintainer GitHub fork (BedrockX) pinned by commit plus a `patch-package` hook, so new dev dependencies are real supply-chain surface.
+- **No linter, no type checker.** `node --check` already covers the parse-level ground `ruff` covers in a Python repo; `mypy --strict` has no worthwhile equivalent in plain JS. Revisit when `src/` outgrows a handful of modules.
+- **No `scripts/verify-before-ship.ps1`.** PowerShell is unrunnable on the Mac Mini, which is the host that matters most. `/issue-finish` reads the gate command from this file, so `npm run verify` is fully compatible.
+- **No CI, deliberately.** CI is advisory in this fleet, and its only documented signal beyond the local gate is an e2e suite — which this repo cannot have (see the credential/`server_id_conflict` wall above). It would duplicate the gate and add nothing. If it is ever added, follow the pinned shape in the "GitHub Actions CI conventions" section above, with `actions/setup-node@v6`, and write a `## CI expectations` block at that point — not before.
+- **No packet-serialization round-trip tests.** The repo's own evidence says they would be false confidence: the `category: 'message_only'` bug round-tripped through the protocol definition *perfectly* and still made the server drop the connection ~16 s later. The real failure modes here are server-side semantics only a live connection reveals.
+
+### Restart recipe: **N/A**
+
+There is no long-lived process, no service port, no tray, and no `/api/version` build-identity endpoint — so the scaffold's "Restart and verify before hand-off" section does not fire, and nothing above it should be hand-rolled into one. `npm run spike` is a **foreground** process stopped with Ctrl-C. Do not invent a `taskkill`/port-reclaim recipe for a process that does not exist. (Revisit only if a supervised long-running bot lands — and even then it is a foreground CLI, not a tray.)
