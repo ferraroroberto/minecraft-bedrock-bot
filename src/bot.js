@@ -13,6 +13,7 @@ import { resolveVersion } from './version.js'
 import { runSession } from './connect.js'
 import { createFaultGuard } from './faults.js'
 import { supervise, EXIT } from './supervise.js'
+import { createRecorder } from './recorder.js'
 
 const { Authflow, Titles } = authPkg
 const { RealmAPI } = realmsPkg
@@ -88,6 +89,13 @@ export async function main() {
   const faultGuard = createFaultGuard({ log })
   const backoff = createBackoff()
 
+  // Opt-in packet trace (see .env.example RECORD_PACKETS), default off. One
+  // recorder for the whole process lifetime — not per-session — so a trace
+  // spanning several reconnects lands in a single continuous file.
+  const recordPath = process.env.RECORD_PACKETS
+  const recorder = recordPath ? createRecorder({ filePath: recordPath }) : null
+  if (recorder) log.info('recorder', `recording packets to ${recordPath}`)
+
   // Stray faults from torn-down clients are swallowed only inside this window.
   faultGuard.setSupervising(true)
   try {
@@ -109,6 +117,7 @@ export async function main() {
           context,
           stopSignal,
           faultSignal: faultGuard.faultSignal,
+          recorder,
         }),
     })
   } finally {
@@ -118,5 +127,6 @@ export async function main() {
     process.off('SIGTERM', sigterm)
     lock.release()
     log.info('lock', 'released')
+    await recorder?.close()
   }
 }

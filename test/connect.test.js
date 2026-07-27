@@ -153,6 +153,40 @@ test('an unknown REALM_ID lists what was actually found', async () => {
   assert.match(err.message, /casa=5/)
 })
 
+test('the resolved session carries the accumulated world state (#13)', async () => {
+  const client = new FakeClient()
+  const deps = fakeDeps(client)
+  const session = runSession(deps)
+  await deps.ready
+  spawn(client)
+  client.emit('close', 'done')
+  const result = await session
+  assert.equal(result.world.self.runtimeEntityId, 7)
+  assert.deepEqual(result.world.self.position, { x: 1, y: 2, z: 3 })
+})
+
+test('an injected recorder observes packets without affecting the connection, and a recorder failure cannot drop the session', async () => {
+  const client = new FakeClient()
+  const calls = []
+  const recorder = {
+    recordInbound: (name, packet) => {
+      calls.push(['in', name, packet])
+      if (name === 'play_status') throw new Error('disk full') // must not propagate
+    },
+    recordOutbound: (name, packet) => calls.push(['out', name, packet]),
+  }
+  const deps = fakeDeps(client)
+  const session = runSession({ ...deps, recorder })
+  await deps.ready
+  spawn(client)
+  client.emit('close', 'done')
+  const result = await session
+
+  assert.equal(result.endedBy, 'close', 'a throwing recorder must not break the connection path')
+  assert.ok(calls.some(([dir, name]) => dir === 'in' && name === 'start_game'))
+  assert.ok(calls.some(([dir, name, packet]) => dir === 'out' && name === 'text' && packet.category === 'authored'))
+})
+
 test('NetherNet options carry networkId, legacy options split host:port', () => {
   const base = { authflow: {}, username: 'u', profilesFolder: '/p', version: { version: '1.26.30', protocolVersion: 1001 } }
   const nether = buildClientOptions({ ...base, transport: 'NETHERNET_JSONRPC', join: { address: 'a-guid' } })
