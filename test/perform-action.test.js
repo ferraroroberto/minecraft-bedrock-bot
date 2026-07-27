@@ -217,6 +217,80 @@ test('invalid args are refused with zero packets written, before any policy chec
   assert.equal(client.written.length, 0)
 })
 
+// #17: move_to/look_at are STREAMING actions through the SAME performAction
+// gate — a mutable world (getWorld/setWorld pair) and a fast fake sleep, so
+// the tick loop runs in-process without real waiting.
+function fakeMutableWorld(initial) {
+  let current = initial
+  return { getWorld: () => current, setWorld: (w) => { current = w }, getCurrent: () => current }
+}
+const fastSleep = async () => {}
+
+test('move_to dry-run writes zero packets and reports an estimated tick count', async () => {
+  const client = fakeClient()
+  const { getWorld, setWorld } = fakeMutableWorld(makeWorld({ position: { x: 0, y: 64, z: 0 } }))
+  const { performAction } = createActionRunner({
+    client, getWorld, setWorld, sleep: fastSleep, waitForWorld: waitForWorldTimingOut, config: { armed: false },
+  })
+  const result = await performAction('move_to', { x: 5, y: 64, z: 0 })
+  assert.equal(result.ok, true)
+  assert.equal(result.dryRun, true)
+  assert.ok(result.estimatedTicks > 0)
+  assert.equal(client.written.length, 0)
+})
+
+test('move_to honours the #14 envelope: an out-of-region target is refused, and the refusal names the region — never clamped', async () => {
+  const client = fakeClient()
+  const { getWorld, setWorld } = fakeMutableWorld(makeWorld({ position: { x: 0, y: 64, z: 0 } }))
+  const { performAction } = createActionRunner({
+    client, getWorld, setWorld, sleep: fastSleep, waitForWorld: waitForWorldTimingOut,
+    config: { armed: true, region: { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 10, z: 10 } } },
+  })
+  const result = await performAction('move_to', { x: 50, y: 5, z: 5 })
+  assert.equal(result.ok, false)
+  assert.equal(result.refused, true)
+  assert.match(result.reason, /outside the bounded operating region/)
+  assert.equal(client.written.length, 0)
+})
+
+test('move_to is armed-and-confirmed end to end through performAction, and moves world state via the shared getWorld/setWorld pair', async () => {
+  const client = fakeClient()
+  const { getWorld, setWorld, getCurrent } = fakeMutableWorld(makeWorld({ position: { x: 0, y: 64, z: 0 } }))
+  const { performAction } = createActionRunner({
+    client, getWorld, setWorld, sleep: fastSleep, waitForWorld: waitForWorldTimingOut, config: { armed: true },
+  })
+  const result = await performAction('move_to', { x: 1, y: 64, z: 0 })
+  assert.equal(result.ok, true)
+  assert.ok(client.written.length > 0)
+  assert.ok(client.written.every((w) => w.name === 'player_auth_input'))
+  assert.ok(Math.abs(getCurrent().self.position.x - 1) < 0.4)
+})
+
+test('look_at is not spatial — a look target outside the bounded region is NOT refused, since it only rotates the bot', async () => {
+  const client = fakeClient()
+  const { getWorld, setWorld } = fakeMutableWorld(makeWorld({ position: { x: 0, y: 64, z: 0 } }))
+  const { performAction } = createActionRunner({
+    client, getWorld, setWorld, sleep: fastSleep, waitForWorld: waitForWorldTimingOut,
+    config: { armed: true, region: { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 10, z: 10 } } },
+  })
+  const result = await performAction('look_at', { x: 999, y: 64, z: 999 })
+  assert.equal(result.ok, true)
+})
+
+test('move_to and look_at each consume exactly one rate-limit slot per call, not one per tick', async () => {
+  const client = fakeClient()
+  const { getWorld, setWorld } = fakeMutableWorld(makeWorld({ position: { x: 0, y: 64, z: 0 } }))
+  const { performAction } = createActionRunner({
+    client, getWorld, setWorld, sleep: fastSleep, waitForWorld: waitForWorldTimingOut,
+    now: () => 0, config: { armed: true, rateLimit: { maxActions: 1, windowMs: 1000 } },
+  })
+  const first = await performAction('move_to', { x: 1, y: 64, z: 0 })
+  const second = await performAction('look_at', { x: 1, y: 64, z: 0 })
+  assert.equal(first.ok, true, 'a multi-tick move_to must still be exactly one rate-limit consumption')
+  assert.equal(second.ok, false)
+  assert.equal(second.reason, 'rate limit exceeded')
+})
+
 test('every decision — allowed, refused, or unverified — is written to the audit log with why', async () => {
   const client = fakeClient()
   const audit = createAuditLog()

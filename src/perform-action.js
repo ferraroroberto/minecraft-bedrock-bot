@@ -28,6 +28,7 @@ import {
   InvalidActionArgsError,
 } from './actions.js'
 import { checkRegion, checkBreakWhitelist, createRateLimiter } from './safety.js'
+import { runMovementStream, DEFAULT_WALK_SPEED_PER_TICK, LOOK_AT_TICK_COUNT } from './movement.js'
 
 export const DEFAULT_OUTCOME_TIMEOUT_MS = 5_000
 export const DEFAULT_MAX_REACH = 6
@@ -144,6 +145,40 @@ const ACTIONS = {
       return changed !== null
     },
   },
+
+  // move_to/look_at (#17) are STREAMING actions — a per-tick player_auth_input
+  // loop, not a fixed packet list — so they carry `stream: true` and skip the
+  // one-shot build/verify shape entirely; performAction() branches on it
+  // below. `validate` plays build()'s arg-checking role since there is no
+  // packet to build up front. look_at is NOT spatial: it rotates the bot, it
+  // never moves it, so a look target outside the bounded region is not a
+  // movement-safety concern the way a move_to target is.
+  move_to: {
+    spatial: true,
+    stream: true,
+    validate: (args) =>
+      Number.isFinite(args.x) && Number.isFinite(args.y) && Number.isFinite(args.z)
+        ? { ok: true }
+        : refuse('move_to: x, y, z must be finite numbers'),
+    precondition: (args, world) => (world.self.position ? { ok: true } : refuse('self position is not yet known')),
+    estimateTicks: (args, world, config) => {
+      const d = distance(world.self.position, args)
+      return Math.max(1, Math.ceil(d / (config.moveSpeedPerTick ?? DEFAULT_WALK_SPEED_PER_TICK)) + 2)
+    },
+    run: (args, world, ctx) => runMovementStream('move_to', { x: args.x, y: args.y, z: args.z }, ctx),
+  },
+
+  look_at: {
+    spatial: false,
+    stream: true,
+    validate: (args) =>
+      Number.isFinite(args.x) && Number.isFinite(args.y) && Number.isFinite(args.z)
+        ? { ok: true }
+        : refuse('look_at: x, y, z must be finite numbers'),
+    precondition: (args, world) => (world.self.position ? { ok: true } : refuse('self position is not yet known')),
+    estimateTicks: () => LOOK_AT_TICK_COUNT,
+    run: (args, world, ctx) => runMovementStream('look_at', { x: args.x, y: args.y, z: args.z }, ctx),
+  },
 }
 
 export const ACTION_NAMES = Object.freeze(Object.keys(ACTIONS))
@@ -155,6 +190,11 @@ export const ACTION_NAMES = Object.freeze(Object.keys(ACTIONS))
  * @param {(predicate: (world: object) => boolean, timeoutMs: number) => Promise<object|null>} deps.waitForWorld
  *   resolves with the first world state matching predicate, or null on timeout. Owned by the caller (real wiring: subscribe
  *   to world updates in connect.js; tests: a controllable fake) — this module has no opinion on HOW world state is observed.
+ * @param {(world: object) => void} [deps.setWorld]  #17: required only for move_to/look_at — applies the mover's own optimistic
+ *   self-move (src/world.js applySelfMove) each tick, and is where a real correct_player_move_prediction lands via the SAME
+ *   shared state in real wiring. No default: a caller that never uses move_to/look_at never needs it; one that does and
+ *   forgets to wire it fails loudly on the first tick rather than silently mis-tracking position.
+ * @param {(ms: number) => Promise<void>} [deps.sleep]  #17: the per-tick pacer for move_to/look_at. Defaults to a real setTimeout-based sleep.
  * @param {object} deps.config
  * @param {boolean} [deps.config.armed]             default false = dry-run
  * @param {{min:{x,y,z}, max:{x,y,z}}} [deps.config.region]
@@ -162,12 +202,25 @@ export const ACTION_NAMES = Object.freeze(Object.keys(ACTIONS))
  * @param {number} [deps.config.maxReach]
  * @param {number} [deps.config.outcomeTimeoutMs]
  * @param {{maxActions:number, windowMs:number}} [deps.config.rateLimit]
+ * @param {number} [deps.config.tickIntervalMs]     #17: player_auth_input send cadence, default 50ms/20Hz (unverified — see src/movement.js)
+ * @param {number} [deps.config.moveSpeedPerTick]   #17: naive step size per tick, default ~walking speed (see src/movement.js)
  * @param {{record: (entry: object) => void}} [deps.audit]
  * @param {{info?, warn?, error?}} [deps.log]
  * @param {() => number} [deps.now]
  * @param {{tryConsume: () => boolean}} [deps.rateLimiter]                 injectable for tests; built from config.rateLimit otherwise
  */
-export function createActionRunner({ client, getWorld, waitForWorld, config, audit = null, log = console, now = () => Date.now(), rateLimiter = null }) {
+export function createActionRunner({
+  client,
+  getWorld,
+  waitForWorld,
+  setWorld,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  config,
+  audit = null,
+  log = console,
+  now = () => Date.now(),
+  rateLimiter = null,
+}) {
   const limiter =
     rateLimiter ?? createRateLimiter({ maxActions: config.rateLimit?.maxActions ?? 20, windowMs: config.rateLimit?.windowMs ?? 10_000, now })
 
@@ -190,6 +243,45 @@ export function createActionRunner({ client, getWorld, waitForWorld, config, aud
     }
 
     const worldBefore = getWorld()
+
+    if (spec.stream) {
+      const argCheck = spec.validate(args)
+      if (!argCheck.ok) {
+        log.warn?.('action.refused', argCheck.reason)
+        record(argCheck)
+        return argCheck
+      }
+
+      if (spec.spatial) {
+        const regionCheck = checkRegion(config.region, args)
+        if (!regionCheck.ok) {
+          log.warn?.('action.refused', `${name}: ${regionCheck.reason}`)
+          record(regionCheck)
+          return regionCheck
+        }
+      }
+
+      const preCheck = spec.precondition(args, worldBefore, config)
+      if (!preCheck.ok) {
+        log.warn?.('action.refused', `${name}: ${preCheck.reason}`)
+        record(preCheck)
+        return preCheck
+      }
+
+      if (!config.armed) {
+        const estimatedTicks = spec.estimateTicks(args, worldBefore, config)
+        const result = { ok: true, dryRun: true, wouldWrite: [`player_auth_input ×~${estimatedTicks}`], estimatedTicks }
+        log.info?.('action.dry_run', `${name}: would write ${result.wouldWrite[0]}`)
+        record(result)
+        return result
+      }
+
+      const streamResult = await spec.run(args, worldBefore, { client, getWorld, setWorld, sleep, config, log })
+      log.info?.('action.written', `${name}: sent ${streamResult.ticksSent} player_auth_input tick(s)`)
+      record(streamResult)
+      return streamResult
+    }
+
     let packets
     try {
       packets = spec.build(args, worldBefore)

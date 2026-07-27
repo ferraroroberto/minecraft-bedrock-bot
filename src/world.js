@@ -114,6 +114,47 @@ function reduceMovePlayer(state, packet) {
   return withSelf(state, { position, rotation })
 }
 
+function reduceCorrectPlayerMovePrediction(state, packet) {
+  // #17: the server's authoritative override for a player_auth_input the
+  // client sent (prediction_type === 'vehicle' is a different actor, not
+  // relevant to self). Server truth always wins over whatever we optimistically
+  // applied from our own outbound ticks.
+  if (packet.prediction_type !== 'player') return state
+  const position = toVec3(packet.position)
+  if (!position) return state
+  // rotation here is a vec2f whose pitch/yaw component ordering is NOT
+  // cross-checked against an independent implementation the way start_game's
+  // vec2f was (see this file's header) — x=pitch/y=yaw is the ordering used,
+  // flagged as unverified rather than presented as confirmed.
+  const rotation =
+    packet.rotation && Number.isFinite(packet.rotation.x) && Number.isFinite(packet.rotation.y)
+      ? { pitch: packet.rotation.x, yaw: packet.rotation.y }
+      : state.self.rotation
+  return withSelf(state, { position, rotation })
+}
+
+/**
+ * #17: optimistic self-application of our OWN just-sent player_auth_input —
+ * NOT a real inbound packet, so this is exported as a plain function rather
+ * than folded into reduce()'s packet-name dispatch (WORLD_PACKET_NAMES drives
+ * real `client.on(name, ...)` wiring in connect.js, and player_auth_input is
+ * never received inbound). Bedrock's own client-authoritative design means
+ * this IS the intended positive signal for accepted movement — the server
+ * only replies to correct, never to confirm (see src/movement.js). A real
+ * correct_player_move_prediction, via reduce() above, always overrides it.
+ * @returns {object} a new state
+ */
+export function applySelfMove(state, { position, rotation }) {
+  const patch = {}
+  if (position && Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z)) {
+    patch.position = position
+  }
+  if (rotation && Number.isFinite(rotation.pitch) && Number.isFinite(rotation.yaw)) {
+    patch.rotation = rotation
+  }
+  return Object.keys(patch).length ? withSelf(state, patch) : state
+}
+
 function reduceUpdateAttributes(state, packet) {
   if (!Array.isArray(packet.attributes)) return state
   const patch = {}
@@ -235,6 +276,7 @@ function reduceUpdateBlock(state, packet) {
 const HANDLERS = {
   start_game: reduceStartGame,
   move_player: reduceMovePlayer,
+  correct_player_move_prediction: reduceCorrectPlayerMovePrediction,
   update_attributes: reduceUpdateAttributes,
   inventory_content: reduceInventoryContent,
   inventory_slot: reduceInventorySlot,
