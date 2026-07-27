@@ -13,10 +13,16 @@
 // in a PUBLIC repo, treat under-redaction as a real risk, not a theoretical
 // one — see test/recorder.test.js, which asserts on raw file bytes for a
 // broader set of secret-shaped keys than this pattern is built from.
+//
+// The key/cert/signature/hash/bearer roots were added deliberately, not
+// speculatively — BedrockX's own auth flow sends a `publicKey` field
+// (node_modules/bedrockx/src/client/auth.js:8, `{ publicKey: client.
+// clientX509 }`), i.e. this client's ECDH handshake already carries
+// key/certificate-shaped fields the original three-word list did not cover.
 import fs from 'node:fs'
 import path from 'node:path'
 
-const SENSITIVE_KEY_PATTERN = /token|xuid|xbox|network[_-]?id|session[_-]?id|invite|secret|credential|authoriz/i
+const SENSITIVE_KEY_PATTERN = /token|xuid|xbox|network[_-]?id|session[_-]?id|invite|secret|credential|authoriz|key|cert|signature|hash|bearer/i
 const REDACTED = '[REDACTED]'
 
 function redact(value) {

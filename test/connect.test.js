@@ -187,6 +187,32 @@ test('an injected recorder observes packets without affecting the connection, an
   assert.ok(calls.some(([dir, name, packet]) => dir === 'out' && name === 'text' && packet.category === 'authored'))
 })
 
+test('another player typing the stop command triggers shutdown (#14 kill-switch)', async () => {
+  const client = new FakeClient()
+  const deps = fakeDeps(client)
+  const session = runSession(deps)
+  await deps.ready
+  spawn(client)
+  client.emit('text', { source_name: 'Roberto39764§r', message: 'bot stop' })
+  const result = await session
+  assert.equal(result.endedBy, 'shutdown')
+  assert.equal(result.reason, 'stop command received via chat')
+  assert.equal(client.closeCalls, 1)
+})
+
+test('ordinary chat that merely contains "stop" does not trigger the kill-switch', async () => {
+  const client = new FakeClient()
+  const deps = fakeDeps(client)
+  const session = runSession(deps)
+  await deps.ready
+  spawn(client)
+  client.emit('text', { source_name: 'Roberto39764§r', message: 'please stop mining that' })
+  client.emit('close', 'unrelated disconnect')
+  const result = await session
+  assert.equal(result.endedBy, 'close')
+  assert.equal(result.reason, 'unrelated disconnect')
+})
+
 test('NetherNet options carry networkId, legacy options split host:port', () => {
   const base = { authflow: {}, username: 'u', profilesFolder: '/p', version: { version: '1.26.30', protocolVersion: 1001 } }
   const nether = buildClientOptions({ ...base, transport: 'NETHERNET_JSONRPC', join: { address: 'a-guid' } })
