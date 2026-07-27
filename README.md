@@ -107,6 +107,34 @@ The bot is no longer a straight-line script — it runs a supervised loop that s
 
 Actual daemonization (a `launchd` plist, auto-start at boot, log rotation) is deliberately **not** included — this makes a foreground process survive its own failures and exit legibly, which is exactly the precondition such a wrapper needs.
 
+## World state + packet recorder
+
+The bot now tracks a queryable snapshot of what it has observed — its own
+position/rotation/gamemode/dimension/health/hunger, inventory contents,
+nearby entities, and any block it has seen an `update_block` for
+(`src/world.js`). It is fed by a pure, packet-name-keyed reducer
+(`reduce(state, packetName, packet)`) wired into `runSession` as a per-session
+observer that cannot throw into the connection path — a bad reducer must not
+be able to drop the session. Full `level_chunk` (sub-chunk palette) decoding
+is a deliberate stretch goal, not part of this layer.
+
+An opt-in packet recorder (`src/recorder.js`, `RECORD_PACKETS` in `.env`,
+default off) appends every inbound and outbound packet to a JSONL trace, with
+auth-shaped fields (tokens, XUIDs, network/session ids) redacted before
+writing. The next time the bot runs live, that trace becomes a real fixture
+corpus for this layer and whatever is built on top of it — at no extra cost
+and with no extra live run requested. **Any trace committed to this public
+repo must be reviewed first** — if you are not confident it carries no bearer
+token, XUID, invite code, or other player's identity, keep it gitignored
+instead.
+
+**This layer is structurally correct against the pinned protocol definition,
+not yet empirically confirmed against a real packet stream.** All field names
+were verified against BedrockX's own `protocol.json` (and cross-checked
+against pmmp/BedrockProtocol's independent implementation for two cases the
+pin's own field names don't make obvious — see `src/world.js`'s header
+comment), but no live packets have been decoded by this code yet.
+
 ## Verification
 
 ```bash
