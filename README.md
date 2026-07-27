@@ -105,6 +105,8 @@ The bot is no longer a straight-line script — it runs a supervised loop that s
 | `2` | another instance holds the lock |
 | `3` | gave up after 10 consecutive failures without a stable connection |
 
+These codes reach the parent process for real: `1` and `2` are covered by an offline regression test that spawns the actual `node scripts/connect-spike.js` entry point and asserts on its real OS exit code (`test/process-exit.test.js`) — not just on `supervise()`'s in-process return value, which a hung process would still report correctly while never actually delivering it (#11). `0` needed a live connect-then-clean-shutdown to verify, since it's the path a live session's own async cleanup can stall — see the `Client.close()` gotcha below.
+
 Actual daemonization (a `launchd` plist, auto-start at boot, log rotation) is deliberately **not** included — this makes a foreground process survive its own failures and exit legibly, which is exactly the precondition such a wrapper needs.
 
 ## World state + packet recorder
@@ -230,6 +232,7 @@ These each cost real debugging time; they are not obvious from any documentation
 - **Chat source names carry formatting codes.** The server appends `§r` (e.g. `Roberto39764§r`), so naive `source_name === username` comparisons fail — strip `§.` first.
 - **Position comes off the raw `start_game` packet.** BedrockX re-emits raw packet names; there is no synthesized `spawn` event and no `client.startGameData` convenience property.
 - **The Realms API pins a client version.** It rejects anything but the current game version with `{"errorCode":6020,"errorMsg":"Unknown client version"}`, so `MC_VERSION` / `PROTOCOL_VERSION` in the spike must track the live game (currently `1.26.30` / `1001`).
+- **`Client.close()` fires its signalling socket's teardown without awaiting it, and that teardown is not safe to wait for either.** `client.js:155` calls `this.nethernet.signalling.destroy()` but never awaits the returned promise, and nulls `this.nethernet` on the next line — so by the time `close()` returns, the actual WebSocket close handshake to the NetherNet signalling host (`wss://signal.franchise.minecraft-services.net`) is still in flight, and there is no longer a handle to await it from outside. Measured on the Windows tower (Node 24): after a clean SIGINT shutdown with the connection and lock already released, `process.getActiveResourcesInfo()` showed a lingering `TCPSocketWrap` (the signalling socket) plus timers; left alone, the process did not just hang — it **segfaulted roughly 15 seconds later**, twice in two independent runs, almost certainly from `@roamhq/wrtc`'s native WebRTC teardown finalizing late. This is a second, Windows-specific symptom of the same root cause as the macOS hang originally reported in #11 (which needed `kill -9`). Since neither the socket close nor the native cleanup is ours to fix or safe to await, `scripts/connect-spike.js` exits immediately (`process.exit(code)`) once `main()`'s own state (session, lock, recorder) is confirmed torn down, rather than wait on third-party cleanup that can crash.
 
 ## Running it on the Mac Mini
 
