@@ -18,6 +18,8 @@
 //      error alone leaves a half-dead client, so we close it ourselves — once.
 import { classifyRealmsError } from './errors.js'
 import { stripFormatting } from './formatting.js'
+import { createWorldState, reduce, WORLD_PACKET_NAMES } from './world.js'
+import { allPacketNames } from './protocol-packets.js'
 
 /** How long to wait for `play_status: player_spawn` before giving up on an attempt. */
 export const DEFAULT_CONNECT_TIMEOUT_MS = 60_000
@@ -99,9 +101,12 @@ export function buildClientOptions({ join, transport, authflow, username, profil
 /**
  * Run a single session: connect, stay connected, resolve when it ends.
  *
- * @returns {Promise<{ endedBy: string, reason: string|null, connected: boolean, uptimeMs: number }>}
+ * @returns {Promise<{ endedBy: string, reason: string|null, connected: boolean, uptimeMs: number, world: object }>}
  *   Resolves on any *connection-level* end. Rejects with a ClassifiedError only
  *   for failures that happened before a client existed (API/auth/version).
+ *   `world` is the accumulated world-state snapshot (src/world.js) as of the
+ *   moment the session ended — a fresh createWorldState() per call, since a
+ *   reconnect re-joins via a fresh start_game anyway.
  */
 export async function runSession({
   api,
@@ -117,6 +122,7 @@ export async function runSession({
   stopSignal = null,
   faultSignal = null,
   now = () => Date.now(),
+  recorder = null,
 }) {
   const { realm, join, transport } = await resolveRealm({ api, realmId, context })
   log.info(
@@ -137,6 +143,7 @@ export async function runSession({
     let connectTimer = null
     let unsubscribeStop = null
     let unsubscribeFault = null
+    let world = createWorldState()
 
     const finish = (endedBy, reason) => {
       if (settled) return
@@ -158,7 +165,46 @@ export async function runSession({
         reason: reason ?? null,
         connected: connectedAt !== null,
         uptimeMs: connectedAt === null ? 0 : now() - connectedAt,
+        world,
       })
+    }
+
+    // The world-model observer. reduce() is a pure function that is
+    // documented to never throw (src/world.js) — a bad reducer must not be
+    // able to drop the connection — so no try/catch is needed at this
+    // wiring site itself. Attached per-session, per-name, because BedrockX
+    // has no generic `packet` event (client.js:207 emits by raw name only)
+    // and `close()` calls removeAllListeners(), so a listener attached
+    // outside runSession would silently stop firing after the first
+    // reconnect.
+    for (const name of WORLD_PACKET_NAMES) {
+      client.on(name, (packet) => {
+        world = reduce(world, name, packet)
+      })
+    }
+
+    // The opt-in packet recorder (src/recorder.js). Unlike the reducer, this
+    // performs real file I/O, so failures ARE caught here — a full disk must
+    // not be able to drop the connection either.
+    if (recorder) {
+      for (const name of allPacketNames()) {
+        client.on(name, (packet) => {
+          try {
+            recorder.recordInbound(name, packet)
+          } catch (err) {
+            log.warn('recorder.inbound.failed', String(err?.message ?? err))
+          }
+        })
+      }
+      const rawWrite = client.write.bind(client)
+      client.write = (name, params) => {
+        try {
+          recorder.recordOutbound(name, params)
+        } catch (err) {
+          log.warn('recorder.outbound.failed', String(err?.message ?? err))
+        }
+        return rawWrite(name, params)
+      }
     }
 
     // Ctrl-C must end a *connected* session immediately. Checking a flag only
