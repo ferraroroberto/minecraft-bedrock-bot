@@ -99,6 +99,45 @@ test('redacts a broader set of secret-shaped fields than the three the deny-list
   })
 })
 
+test('redacts key/cert/signature/hash/bearer-shaped fields — outside the vocabulary the pattern was originally written from', () => {
+  // #14 widened SENSITIVE_KEY_PATTERN with key/cert/signature/hash/bearer
+  // roots after finding that BedrockX's own auth flow sends a `publicKey`
+  // field (client/auth.js:8) — i.e. this client's ECDH handshake already
+  // carries key/certificate-shaped fields the original pattern missed. These
+  // field names are deliberately NOT in the original three-word deny-list.
+  const filePath = tempFile()
+  const recorder = createRecorder({ filePath })
+
+  recorder.recordInbound('handshake', {
+    apiKey: 'SECRET_API_KEY_VALUE',
+    privateKey: 'SECRET_PRIVATE_KEY_VALUE',
+    certificate: 'SECRET_CERTIFICATE_VALUE',
+    userHash: 'SECRET_USER_HASH_VALUE',
+    signature: 'SECRET_SIGNATURE_VALUE',
+    bearerToken: 'SECRET_BEARER_VALUE',
+    // ordinary gameplay data, which must survive unredacted
+    position: { x: 1, y: 64, z: 2 },
+    health: 18,
+  })
+
+  return recorder.close().then(() => {
+    const raw = fs.readFileSync(filePath, 'utf8')
+    const secretValues = [
+      'SECRET_API_KEY_VALUE',
+      'SECRET_PRIVATE_KEY_VALUE',
+      'SECRET_CERTIFICATE_VALUE',
+      'SECRET_USER_HASH_VALUE',
+      'SECRET_SIGNATURE_VALUE',
+      'SECRET_BEARER_VALUE',
+    ]
+    for (const secret of secretValues) {
+      assert.ok(!raw.includes(secret), `${secret} must not appear in the trace file, but it did`)
+    }
+    assert.ok(raw.includes('"x":1'))
+    assert.ok(raw.includes('"health":18'))
+  })
+})
+
 test('creates missing parent directories', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-bot-recorder-'))
   const filePath = path.join(dir, 'nested', 'deeper', 'trace.jsonl')

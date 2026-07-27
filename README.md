@@ -2,7 +2,7 @@
 
 AI-controllable bot client for Roberto's Minecraft **Bedrock Edition** Realm.
 
-**Current scope — Layer 1 only.** This repo currently proves one thing: an external Node.js process can authenticate as a second Microsoft/Xbox account, join the Realm as an invited member, exchange chat, and read its own position. There is **no LLM wiring, no pathfinding, and no world model yet** — those are tracked as separate future issues once this foundation is proven out.
+**Current scope.** This repo proves that an external Node.js process can authenticate as a second Microsoft/Xbox account, join the Realm as an invited member, supervise its own reconnects, track a queryable world-state snapshot, and act through a fixed, safety-gated action vocabulary (chat, select a hotbar slot, break/place a block, use an item). There is **no LLM wiring, no pathfinding, and no movement yet** — those are tracked as separate future issues (#15, and #17 for movement) once each foundation layer is proven out.
 
 ## Blocking prerequisite
 
@@ -134,6 +134,59 @@ were verified against BedrockX's own `protocol.json` (and cross-checked
 against pmmp/BedrockProtocol's independent implementation for two cases the
 pin's own field names don't make obvious — see `src/world.js`'s header
 comment), but no live packets have been decoded by this code yet.
+
+## Action vocabulary + safety envelope
+
+The bot can now act, through a fixed, schema-validated vocabulary — never raw
+packets exposed upward — and every action passes through one gate,
+`performAction` (`src/perform-action.js`), before anything is written to the
+wire:
+
+- **`chat(message)`**, **`select_slot(slot)`** (`player_hotbar`),
+  **`break_block(x, y, z, face)`** (`player_action` start/stop-break),
+  **`place_block(x, y, z, face, hotbarSlot)`** and **`use_item(hotbarSlot)`**
+  (both `inventory_transaction`, reusing the caller's already-decoded item
+  from the world model as `held_item` rather than hand-synthesizing one).
+  Packet-building lives in `src/actions.js` and is pure — no client, no I/O.
+- **The safety envelope is enforced in code, below the LLM, never in a
+  prompt** (`src/safety.js`): **dry-run by default** — actions validate, log,
+  and report what they *would* write; nothing is armed unless
+  `config.armed === true`. A target outside the **bounded operating region**
+  is **refused and logged, naming the region — never silently clamped**.
+  Block-breaking is **deny-by-default**, allowed only against an explicit
+  `breakWhitelist` of `block_runtime_id`s (the world model does not yet
+  decode the chunk palette into block names — see "World state" above).
+  A fixed-window **rate limiter** caps actions per window. Every decision —
+  allowed, refused, or unverified — goes to an **audit log**.
+- **An action's outcome is verified from world state, never from "a packet
+  was written."** `performAction` writes, then polls the caller-supplied
+  `waitForWorld(predicate, timeoutMs)` for the expected change (a block's
+  runtime id changing, a hotbar slot updating, an item stack or health/hunger
+  moving); a timeout reports **failure**, not success. `chat` is the one
+  documented exception — Bedrock gives no delivery ack and the world model
+  doesn't track chat history, so a written chat packet is reported sent.
+  `use_item`'s effect is not always uniformly observable either; when nothing
+  the world model tracks changes, it correctly reports unverified/failure
+  rather than guessing.
+- **This is a plain API, not yet wired to anything live.** LLM wiring is a
+  separate future layer (#15); nothing here calls `performAction` from
+  `bot.js`/`connect.js` except the one already-live piece, the **chat
+  kill-switch**: a player typing the literal `bot stop` in chat (matched
+  narrowly — untrusted input, never something an LLM interprets) triggers the
+  same clean-shutdown path Ctrl-C uses.
+- **Movement (`move_to`/`look_at`) is deliberately not here** — Bedrock's
+  `player_auth_input` is a continuous per-tick packet, a different shape of
+  problem from the one-shot actions above, and has its own issue (#17).
+
+**All of this is offline-tested and unverified against a live packet
+stream**, per the same standing rule as the world model above: field shapes
+were read off the pinned `protocol.json`, not confirmed against a real
+server. Two specific assumptions worth knowing before an armed run: `use_item`'s
+`face` for a no-block-targeted click has no authoritative source in the pin
+or in BedrockX's own code (see `src/actions.js`'s comment), and outcome
+verification for `use_item` only catches effects the world model already
+tracks (held-item stack, health, hunger) — a use with no effect on those three
+signals will report as failed even if the server accepted it.
 
 ## Verification
 

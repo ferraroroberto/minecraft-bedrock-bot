@@ -20,6 +20,8 @@ import { classifyRealmsError } from './errors.js'
 import { stripFormatting } from './formatting.js'
 import { createWorldState, reduce, WORLD_PACKET_NAMES } from './world.js'
 import { allPacketNames } from './protocol-packets.js'
+import { buildChatPacket } from './actions.js'
+import { isStopCommand } from './safety.js'
 
 /** How long to wait for `play_status: player_spawn` before giving up on an attempt. */
 export const DEFAULT_CONNECT_TIMEOUT_MS = 60_000
@@ -257,6 +259,15 @@ export async function runSession({
       const from = stripFormatting(packet.source_name)
       if (from && from.toLowerCase() !== username.toLowerCase()) {
         log.info('chat.in', `${from}: ${packet.message}`)
+        // Chat kill-switch (#14): inbound chat is untrusted input — including
+        // from a player who is not Roberto — so this matches a narrow literal
+        // command only, never something an LLM interprets. finish() is
+        // idempotent, so this composes safely with a kick/close arriving
+        // around the same time.
+        if (isStopCommand(packet.message)) {
+          log.warn('chat.stop_command', `${from} sent the stop command — shutting down`)
+          finish('shutdown', 'stop command received via chat')
+        }
       }
     })
 
@@ -281,18 +292,10 @@ export async function runSession({
     })
 
     function sendChat(message) {
-      // `category: 'authored'` is load-bearing: 'message_only' serializes fine
-      // but makes the server drop the connection ~16s later.
-      client.write('text', {
-        needs_translation: false,
-        category: 'authored',
-        type: 'chat',
-        source_name: username,
-        message,
-        xuid: selfXuid,
-        platform_chat_id: '',
-        has_filtered_message: false,
-      })
+      // chat is now part of the fixed action vocabulary (#14) — the packet
+      // shape lives in src/actions.js, not duplicated here.
+      const { name, params } = buildChatPacket({ message, username, xuid: selfXuid })
+      client.write(name, params)
       log.info('chat.out', message)
     }
   })
