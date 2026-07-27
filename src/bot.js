@@ -20,7 +20,11 @@ const { RealmAPI } = realmsPkg
 const { createClient } = bedrockx
 
 const projectRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const secretsDir = path.join(projectRoot, '.secrets')
+// BOT_SECRETS_DIR exists purely so #11's exit-code regression test can spawn
+// a REAL `node scripts/connect-spike.js` child process and drive it into the
+// lock-held path without touching this project's real .secrets/bot.lock —
+// unset in every normal run.
+const secretsDir = process.env.BOT_SECRETS_DIR ? path.resolve(process.env.BOT_SECRETS_DIR) : path.join(projectRoot, '.secrets')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -128,5 +132,12 @@ export async function main() {
     lock.release()
     log.info('lock', 'released')
     await recorder?.close()
+    // #11 breadcrumb: everything WE own is torn down at this point. Anything
+    // still listed here is third-party async cleanup outside our control
+    // (see scripts/connect-spike.js, which force-exits right after this
+    // resolves rather than wait on it) — logged only when non-empty so the
+    // next incident that isn't this one is still diagnosable from the log.
+    const activeResources = process.getActiveResourcesInfo()
+    if (activeResources.length) log.info('diagnostic.active_resources', JSON.stringify(activeResources))
   }
 }
