@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createWorldState, reduce, getBlockAt, WORLD_PACKET_NAMES } from '../src/world.js'
+import { createWorldState, reduce, getBlockAt, WORLD_PACKET_NAMES, applySelfMove } from '../src/world.js'
 
 test('join, move, and pick up an item updates position, rotation, and inventory', () => {
   let state = createWorldState()
@@ -173,4 +173,34 @@ test('malformed packets — missing or wrong-typed fields — leave state unchan
     assert.doesNotThrow(attempt)
     assert.equal(attempt(), state, 'a malformed packet must return the same state reference, not a mutated copy')
   }
+})
+
+test('#17: correct_player_move_prediction overrides self position/rotation, but only for the player prediction type', () => {
+  let state = createWorldState()
+  state = reduce(state, 'start_game', { runtime_entity_id: 1, player_position: { x: 0, y: 64, z: 0 } })
+  state = reduce(state, 'correct_player_move_prediction', {
+    prediction_type: 'player',
+    position: { x: 3, y: 64, z: 5 },
+    rotation: { x: 10, y: 90 },
+    on_ground: true,
+  })
+  assert.deepEqual(state.self.position, { x: 3, y: 64, z: 5 })
+  assert.deepEqual(state.self.rotation, { pitch: 10, yaw: 90 })
+
+  // A 'vehicle' correction is a different actor — must NOT touch self.
+  const before = state
+  state = reduce(state, 'correct_player_move_prediction', { prediction_type: 'vehicle', position: { x: 99, y: 99, z: 99 } })
+  assert.equal(state, before)
+})
+
+test('#17: applySelfMove is the optimistic self-driven update — separate from reduce(), since it is not a real inbound packet', () => {
+  let state = createWorldState()
+  state = reduce(state, 'start_game', { runtime_entity_id: 1, player_position: { x: 0, y: 64, z: 0 } })
+  state = applySelfMove(state, { position: { x: 1, y: 64, z: 0 }, rotation: { pitch: 0, yaw: 90 } })
+  assert.deepEqual(state.self.position, { x: 1, y: 64, z: 0 })
+  assert.deepEqual(state.self.rotation, { pitch: 0, yaw: 90 })
+
+  // Malformed input must be a no-op, matching every other reducer's contract.
+  const before = state
+  assert.equal(applySelfMove(state, { position: { x: NaN, y: 0, z: 0 } }), before)
 })
