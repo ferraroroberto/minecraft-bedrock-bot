@@ -1,5 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { runGoal, resolveActionArgs } from '../src/decision-loop.js'
 import { createActionRunner } from '../src/perform-action.js'
 import { createFakeWorld } from '../src/fake-world.js'
@@ -38,6 +41,28 @@ function assertOkIsMeasured(result, sim, goal) {
   assert.equal(result.ok, goal.predicate(sim.getWorld()), 'ok must equal the goal predicate against final world state')
   assert.equal(result.ok, result.verified, 'ok and verified must never disagree')
 }
+
+test('nothing in the test path can reach the hub, even by accident', () => {
+  // #15 requires the gate to stay offline and hermetic. That holds because the
+  // loop takes an INJECTED model client — but "we remembered not to import it"
+  // is not a guarantee, so this asserts it. A future test that imports the hub
+  // adapter (and transitively the SDK) fails here rather than silently making
+  // the gate depend on a service being up.
+  const testDir = path.dirname(fileURLToPath(import.meta.url))
+  const offenders = []
+  const files = [
+    ...readdirSync(testDir).filter((f) => f.endsWith('.js')).map((f) => path.join(testDir, f)),
+    path.join(testDir, '..', 'src', 'decision-loop.js'),
+  ]
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8')
+    for (const line of source.split('\n')) {
+      if (!line.trimStart().startsWith('import')) continue
+      if (line.includes('model-client.js') || line.includes('@anthropic-ai/sdk')) offenders.push(`${path.basename(file)}: ${line.trim()}`)
+    }
+  }
+  assert.deepEqual(offenders, [], 'the decision loop and the whole test suite must never import the hub adapter')
+})
 
 test('A MODEL THAT CLAIMS SUCCESS WITHOUT ACTING FAILS THE RUN', async () => {
   // The single most important test in #15. The model reports the goal done,
