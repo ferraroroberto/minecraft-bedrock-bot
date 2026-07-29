@@ -23,3 +23,5 @@ Thumbs.db
 # --- Codex / other-agent local artifacts ---
 .agents/
 .codex/
+# Launcher scratch (ephemeral images/logs written by the tray launcher)
+.launcher-tmp/
