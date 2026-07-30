@@ -9,10 +9,15 @@
 //      by distance from the bot and capped, and the observation reports the
 //      TOTAL alongside the capped list so the model is told plainly that it
 //      is seeing a subset rather than silently believing it sees everything.
-//   2. NO RAW PACKETS. The model never sees a packet, a runtime entity id it
-//      could echo back as its own, or anything else it could use to reach
-//      below the action vocabulary. It sees position, inventory, neighbours,
-//      terrain it has already observed, and how its last few actions went.
+//   2. NO RAW PACKETS, AND IDS ARE NEVER AUTHORITATIVE. The model never sees
+//      a raw packet, but it does see runtime entity/block ids (describeEntities
+//      and describeBlocks below include them, and recentOutcomes echoes back
+//      whatever args an action ran with). Naming one buys the model nothing:
+//      decision-loop.js's INJECTED_ARGS overwrites identity-bearing args
+//      (e.g. break_block's runtimeEntityId) with the loop's own values after
+//      the model replies, so a model can echo an id back but can never get it
+//      obeyed. It sees position, inventory, neighbours, terrain it has
+//      already observed, and how its last few actions went.
 //
 // Numbers are rounded to 2dp: Bedrock float positions carry ~7 significant
 // digits of noise that cost tokens and buy the model nothing.
