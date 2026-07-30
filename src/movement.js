@@ -27,7 +27,6 @@
 //   - Walk speed: ~0.2154 blocks/tick (Minecraft's normal walking speed,
 //     4.317 blocks/s ÷ 20 ticks/s), used only to size the naive step and the
 //     tick budget — not a claim about what the server will actually accept.
-import { checkRegion } from './safety.js'
 import { applySelfMove } from './world.js'
 
 export const DEFAULT_TICK_INTERVAL_MS = 50
@@ -88,11 +87,6 @@ export function rotationTowards(from, target) {
   const horizontalDistance = Math.sqrt(dx * dx + dz * dz)
   const pitch = (-Math.atan2(dy, horizontalDistance) * 180) / Math.PI
   return { pitch, yaw }
-}
-
-/** Region check for a movement TARGET — same policy as #14's spatial actions, reused rather than reimplemented. */
-export function checkMovementRegion(region, target) {
-  return checkRegion(region, target)
 }
 
 /** How close counts as "arrived" — Bedrock float positions never land on an exact value. */
