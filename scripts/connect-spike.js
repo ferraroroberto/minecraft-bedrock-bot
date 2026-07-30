@@ -1,4 +1,4 @@
-// Entry point for `npm run spike` (and `npm start`).
+// Entry point for `npm run spike`.
 //
 // Kept at this path so issue #1's acceptance chain stays runnable by the same
 // command. What changed in #7: this is no longer a straight-line script that

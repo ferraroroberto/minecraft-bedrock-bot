@@ -4,7 +4,7 @@
   "private": true,
   "description": "AI-controllable bot client for Roberto's Minecraft Bedrock Realm.",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src/bot.js",
   "scripts": {
     "postinstall": "patch-package",
     "spike": "node scripts/connect-spike.js",
