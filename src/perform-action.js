@@ -28,17 +28,10 @@ import {
   InvalidActionArgsError,
 } from './actions.js'
 import { checkRegion, checkBreakWhitelist, createRateLimiter } from './safety.js'
-import { runMovementStream, DEFAULT_WALK_SPEED_PER_TICK, LOOK_AT_TICK_COUNT } from './movement.js'
+import { runMovementStream, distance3, DEFAULT_WALK_SPEED_PER_TICK, LOOK_AT_TICK_COUNT } from './movement.js'
 
 export const DEFAULT_OUTCOME_TIMEOUT_MS = 5_000
 export const DEFAULT_MAX_REACH = 6
-
-function distance(a, b) {
-  const dx = a.x - b.x
-  const dy = a.y - b.y
-  const dz = a.z - b.z
-  return Math.sqrt(dx * dx + dy * dy + dz * dz)
-}
 
 function refuse(reason) {
   return { ok: false, refused: true, reason }
@@ -80,7 +73,7 @@ const ACTIONS = {
       const whitelisted = checkBreakWhitelist(config.breakWhitelist, before)
       if (!whitelisted.ok) return whitelisted
       if (world.self.position) {
-        const d = distance(world.self.position, args)
+        const d = distance3(world.self.position, args)
         const maxReach = config.maxReach ?? DEFAULT_MAX_REACH
         if (d > maxReach) return refuse(`target (${args.x},${args.y},${args.z}) is ${d.toFixed(1)} blocks away — outside max reach ${maxReach}`)
       }
@@ -104,7 +97,7 @@ const ACTIONS = {
     precondition: (args, world, config) => {
       if (!heldItemAt(world, args.hotbarSlot)) return refuse(`hotbar slot ${args.hotbarSlot} is empty — nothing to place`)
       if (!world.self.position) return refuse('self position is not yet known')
-      const d = distance(world.self.position, args)
+      const d = distance3(world.self.position, args)
       const maxReach = config.maxReach ?? DEFAULT_MAX_REACH
       if (d > maxReach) return refuse(`target (${args.x},${args.y},${args.z}) is ${d.toFixed(1)} blocks away — outside max reach ${maxReach}`)
       return { ok: true }
@@ -162,7 +155,7 @@ const ACTIONS = {
         : refuse('move_to: x, y, z must be finite numbers'),
     precondition: (args, world) => (world.self.position ? { ok: true } : refuse('self position is not yet known')),
     estimateTicks: (args, world, config) => {
-      const d = distance(world.self.position, args)
+      const d = distance3(world.self.position, args)
       return Math.max(1, Math.ceil(d / (config.moveSpeedPerTick ?? DEFAULT_WALK_SPEED_PER_TICK)) + 2)
     },
     run: (args, world, ctx) => runMovementStream('move_to', { x: args.x, y: args.y, z: args.z }, ctx),
@@ -244,14 +237,12 @@ export function createActionRunner({
 
     const worldBefore = getWorld()
 
-    if (spec.stream) {
-      const argCheck = spec.validate(args)
-      if (!argCheck.ok) {
-        log.warn?.('action.refused', argCheck.reason)
-        record(argCheck)
-        return argCheck
-      }
-
+    // Shared gate sequence (#14 steps 3-4): region check (spatial actions
+    // only), then precondition, against `worldBefore`. Both the streaming
+    // branch (move_to/look_at) and the one-shot branch run exactly this
+    // sequence before their dry-run/write split — hoisted once so a new
+    // check can't be added to one branch and forgotten in the other.
+    function runGate() {
       if (spec.spatial) {
         const regionCheck = checkRegion(config.region, args)
         if (!regionCheck.ok) {
@@ -267,6 +258,20 @@ export function createActionRunner({
         record(preCheck)
         return preCheck
       }
+
+      return { ok: true }
+    }
+
+    if (spec.stream) {
+      const argCheck = spec.validate(args)
+      if (!argCheck.ok) {
+        log.warn?.('action.refused', argCheck.reason)
+        record(argCheck)
+        return argCheck
+      }
+
+      const gateResult = runGate()
+      if (!gateResult.ok) return gateResult
 
       if (!config.armed) {
         const estimatedTicks = spec.estimateTicks(args, worldBefore, config)
@@ -293,21 +298,8 @@ export function createActionRunner({
       return result
     }
 
-    if (spec.spatial) {
-      const regionCheck = checkRegion(config.region, args)
-      if (!regionCheck.ok) {
-        log.warn?.('action.refused', `${name}: ${regionCheck.reason}`)
-        record(regionCheck)
-        return regionCheck
-      }
-    }
-
-    const preCheck = spec.precondition(args, worldBefore, config)
-    if (!preCheck.ok) {
-      log.warn?.('action.refused', `${name}: ${preCheck.reason}`)
-      record(preCheck)
-      return preCheck
-    }
+    const gateResult = runGate()
+    if (!gateResult.ok) return gateResult
 
     if (!config.armed) {
       const result = { ok: true, dryRun: true, wouldWrite: packets.map((p) => p.name) }
