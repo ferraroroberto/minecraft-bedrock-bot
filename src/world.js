@@ -70,6 +70,14 @@ function idsEqual(a, b) {
   return a != null && b != null && String(a) === String(b)
 }
 
+// varint64/zigzag64/li64 fields decode to `BigInt` (see this file's header),
+// so a guard built on `Number.isFinite` silently rejects every real 64-bit
+// id — `Number.isFinite(7n) === false`. This accepts either representation,
+// unlike `Number.isFinite`, which only ever accepts the `number` half.
+function isIdLike(v) {
+  return typeof v === 'bigint' || (typeof v === 'number' && Number.isFinite(v))
+}
+
 function toVec3(v) {
   return v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z)
     ? { x: v.x, y: v.y, z: v.z }
@@ -90,7 +98,7 @@ function withInventory(state, patch) {
 
 function reduceStartGame(state, packet) {
   const position = toVec3(packet.player_position)
-  if (!position || !Number.isFinite(packet.runtime_entity_id)) return state
+  if (!position || !isIdLike(packet.runtime_entity_id)) return state
   const rotation =
     packet.rotation && Number.isFinite(packet.rotation.x) && Number.isFinite(packet.rotation.z)
       ? { pitch: packet.rotation.x, yaw: packet.rotation.z } // vec2f: x=pitch, z=yaw — confirmed against pmmp's sequential pitch-then-yaw float read
@@ -198,7 +206,7 @@ function reducePlayerHotbar(state, packet) {
 }
 
 function reduceAddEntity(state, packet) {
-  if (!Number.isFinite(packet.runtime_id)) return state
+  if (!isIdLike(packet.runtime_id)) return state
   const entities = new Map(state.entities)
   entities.set(packet.runtime_id, {
     uniqueId: packet.unique_id ?? null,
@@ -210,7 +218,7 @@ function reduceAddEntity(state, packet) {
 }
 
 function reduceAddPlayer(state, packet) {
-  if (!Number.isFinite(packet.runtime_id)) return state
+  if (!isIdLike(packet.runtime_id)) return state
   const entities = new Map(state.entities)
   entities.set(packet.runtime_id, {
     uniqueId: packet.unique_id ?? null,
@@ -222,7 +230,7 @@ function reduceAddPlayer(state, packet) {
 }
 
 function reduceMoveEntity(state, packet) {
-  if (!Number.isFinite(packet.runtime_entity_id)) return state
+  if (!isIdLike(packet.runtime_entity_id)) return state
   const position = toVec3(packet.position)
   const existing = state.entities.get(packet.runtime_entity_id)
   // Out-of-order delivery: a move for an entity we have not seen `add_entity`/
@@ -235,7 +243,7 @@ function reduceMoveEntity(state, packet) {
 }
 
 function reduceMoveEntityDelta(state, packet) {
-  if (!Number.isFinite(packet.runtime_entity_id)) return state
+  if (!isIdLike(packet.runtime_entity_id)) return state
   const existing = state.entities.get(packet.runtime_entity_id)
   if (!existing?.position) return state
   const flags = packet.flags ?? {}

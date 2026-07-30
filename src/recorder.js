@@ -26,6 +26,11 @@ const SENSITIVE_KEY_PATTERN = /token|xuid|xbox|network[_-]?id|session[_-]?id|inv
 const REDACTED = '[REDACTED]'
 
 function redact(value) {
+  // varint64/zigzag64/li64 fields decode to `BigInt` (src/world.js's header),
+  // which most of a Bedrock packet's ids are — and `JSON.stringify` throws
+  // `TypeError: Do not know how to serialize a BigInt`. Stringify it here so
+  // the trace still writes instead of silently failing (#23).
+  if (typeof value === 'bigint') return value.toString()
   if (Array.isArray(value)) return value.map(redact)
   if (value && typeof value === 'object') {
     const out = {}

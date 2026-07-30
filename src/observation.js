@@ -70,7 +70,11 @@ function describeEntities(entities, selfPosition, maxEntities) {
   const all = []
   for (const [runtimeId, entity] of entities) {
     all.push({
-      runtimeId,
+      // world.js's entities Map is keyed by whatever the wire decoded
+      // (varint64 -> BigInt, see its header) — JSON.stringify throws on a
+      // raw BigInt, so this observation, which is JSON.stringify'd straight
+      // into a prompt (src/prompt.js buildUserMessage), must not carry one (#23).
+      runtimeId: typeof runtimeId === 'bigint' ? runtimeId.toString() : runtimeId,
       type: entity.type ?? 'unknown',
       username: entity.username ?? null,
       position: roundVec3(entity.position),
