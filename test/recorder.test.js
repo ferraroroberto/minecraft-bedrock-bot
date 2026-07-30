@@ -138,6 +138,19 @@ test('redacts key/cert/signature/hash/bearer-shaped fields — outside the vocab
   })
 })
 
+test('#23: records a packet carrying a bigint field (varint64 decodes to BigInt) instead of throwing', async () => {
+  const filePath = tempFile()
+  const recorder = createRecorder({ filePath })
+
+  recorder.recordInbound('start_game', { runtime_entity_id: 7n, player_position: { x: 1, y: 64, z: 2 } })
+  await recorder.close()
+
+  const lines = fs.readFileSync(filePath, 'utf8').trim().split('\n')
+  assert.equal(lines.length, 1, 'the packet must actually be written, not silently dropped')
+  const parsed = JSON.parse(lines[0])
+  assert.equal(parsed.packet.runtime_entity_id, '7', 'the bigint is stringified rather than crashing JSON.stringify')
+})
+
 test('creates missing parent directories', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-bot-recorder-'))
   const filePath = path.join(dir, 'nested', 'deeper', 'trace.jsonl')

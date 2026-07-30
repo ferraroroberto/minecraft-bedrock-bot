@@ -56,6 +56,63 @@ test('set_health is not handled — deprecated, unused by the vanilla server', (
   assert.equal(next, state, 'an unhandled packet name must be a pure no-op, same reference back')
 })
 
+test('#23: start_game accepts a bigint runtime_entity_id — varint64 decodes to BigInt, not Number, and Number.isFinite(7n) is false', () => {
+  let state = createWorldState()
+  state = reduce(state, 'start_game', {
+    runtime_entity_id: 7n,
+    player_position: { x: 1, y: 64, z: 2 },
+  })
+  assert.equal(state.self.runtimeEntityId, 7n)
+  assert.deepEqual(state.self.position, { x: 1, y: 64, z: 2 })
+})
+
+test('#23: add_entity, add_player, move_entity, and move_entity_delta accept bigint runtime ids (varint64)', () => {
+  let state = createWorldState()
+  state = reduce(state, 'add_entity', {
+    runtime_id: 42n,
+    unique_id: 1042n,
+    entity_type: 'minecraft:cow',
+    position: { x: 10, y: 64, z: 10 },
+  })
+  assert.deepEqual(state.entities.get(42n), {
+    uniqueId: 1042n,
+    type: 'minecraft:cow',
+    username: null,
+    position: { x: 10, y: 64, z: 10 },
+  })
+
+  state = reduce(state, 'move_entity', { runtime_entity_id: 42n, position: { x: 11, y: 64, z: 10 } })
+  assert.deepEqual(state.entities.get(42n).position, { x: 11, y: 64, z: 10 })
+
+  state = reduce(state, 'add_player', {
+    runtime_id: 5n,
+    unique_id: 500n,
+    username: 'Roberto39764',
+    position: { x: 0, y: 70, z: 0 },
+  })
+  assert.equal(state.entities.get(5n).username, 'Roberto39764')
+
+  state = reduce(state, 'move_entity_delta', {
+    runtime_entity_id: 5n,
+    flags: { has_x: true, has_y: false, has_z: true },
+    x: 3,
+    z: 4,
+  })
+  assert.deepEqual(state.entities.get(5n).position, { x: 3, y: 70, z: 4 })
+})
+
+test('#23: mob_equipment matches self by a bigint runtime id once start_game has populated it — the reported cascade', () => {
+  let state = createWorldState()
+  state = reduce(state, 'start_game', { runtime_entity_id: 7n, player_position: { x: 0, y: 0, z: 0 } })
+  state = reduce(state, 'mob_equipment', {
+    runtime_entity_id: 7n,
+    window_id: 'hotbar',
+    slot: 0,
+    item: { network_id: 1 },
+  })
+  assert.deepEqual(state.inventory.windows.hotbar[0], { network_id: 1 })
+})
+
 test('an entity appears, moves, and is removed', () => {
   let state = createWorldState()
   state = reduce(state, 'add_entity', {

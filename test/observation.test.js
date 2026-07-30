@@ -93,6 +93,14 @@ test('a refusal reason is carried to the model, truncated rather than unbounded'
   assert.ok(outcome.reason.endsWith('…'))
 })
 
+test('#23: an entity keyed by a bigint runtime id (varint64) is stringified, not left to crash JSON.stringify', () => {
+  const entities = new Map([[42n, { uniqueId: 1042n, type: 'minecraft:cow', username: null, position: { x: 1, y: 64, z: 0 } }]])
+  const observation = buildObservation(worldWith({ entities }))
+
+  assert.equal(observation.entities.nearest[0].runtimeId, '42', 'a bigint id is coerced to a string, not left raw')
+  assert.doesNotThrow(() => JSON.stringify(observation), 'a bigint runtime id must not leak into the observation')
+})
+
 test('the whole observation stays JSON-serialisable — it goes straight into a prompt', () => {
   const entities = new Map([[1, { uniqueId: 1n, type: 'cow', username: null, position: { x: 1, y: 64, z: 0 } }]])
   const blocks = new Map([['1,64,0', 7]])
