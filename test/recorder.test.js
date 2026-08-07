@@ -47,7 +47,8 @@ test('appends across multiple recorders opening the same path, rather than trunc
 })
 
 test('redacts a broader set of secret-shaped fields than the three the deny-list originally named', () => {
-  // The recorder's own pattern is /token|xuid|xbox|network[_-]?id|session[_-]?id|invite|secret|credential|authoriz/i.
+  // The recorder's own pattern is /token|xuid|xbox|address|session[_-]?id|invite|secret|credential|authoriz/i,
+  // plus a case-sensitive /[Nn]etworkId/ for the NetherNet transport id.
   // This test deliberately exercises MORE field-name shapes than that list was
   // written from, so it fails the moment the pattern (or a future rewrite of
   // it) stops catching a variant — not just the three fields #13 started from.
@@ -65,7 +66,6 @@ test('redacts a broader set of secret-shaped fields than the three the deny-list
     accessToken: 'SECRET_ACCESS_TOKEN_VALUE',
     token: 'SECRET_TOKEN_VALUE',
     networkId: 'SECRET_NETWORK_ID_VALUE',
-    network_id: 'SECRET_NETWORK_ID_SNAKE_VALUE',
     sessionId: 'SECRET_SESSION_ID_VALUE',
     inviteCode: 'SECRET_INVITE_VALUE',
     clientSecret: 'SECRET_CLIENT_SECRET_VALUE',
@@ -83,7 +83,6 @@ test('redacts a broader set of secret-shaped fields than the three the deny-list
       'SECRET_ACCESS_TOKEN_VALUE',
       'SECRET_TOKEN_VALUE',
       'SECRET_NETWORK_ID_VALUE',
-      'SECRET_NETWORK_ID_SNAKE_VALUE',
       'SECRET_SESSION_ID_VALUE',
       'SECRET_INVITE_VALUE',
       'SECRET_CLIENT_SECRET_VALUE',
@@ -136,6 +135,28 @@ test('redacts key/cert/signature/hash/bearer-shaped fields — outside the vocab
     assert.ok(raw.includes('"x":1'))
     assert.ok(raw.includes('"health":18'))
   })
+})
+
+test("#34: an inventory item's snake_case network_id survives — it is the item TYPE id, not NetherNet's", async () => {
+  // The whole point of the trace is to become an inventory fixture corpus
+  // (README → "World state + packet recorder"). src/observation.js's
+  // describeInventory and src/goals.js's itemCountAtLeast both key off
+  // `item.network_id`, so redacting it makes every recorded trace useless for
+  // the job it was captured to do.
+  const filePath = tempFile()
+  const recorder = createRecorder({ filePath })
+
+  recorder.recordInbound('inventory_content', {
+    window_id: 'inventory',
+    input: [{ network_id: 5, count: 3 }, { network_id: 0 }],
+    // ...while the NetherNet transport id, camelCase, must still go.
+    networkId: 'SECRET_NETHERNET_ID_VALUE',
+  })
+  await recorder.close()
+
+  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8').trim())
+  assert.deepEqual(parsed.packet.input, [{ network_id: 5, count: 3 }, { network_id: 0 }])
+  assert.equal(parsed.packet.networkId, '[REDACTED]')
 })
 
 test('#23: records a packet carrying a bigint field (varint64 decodes to BigInt) instead of throwing', async () => {

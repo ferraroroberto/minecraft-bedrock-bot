@@ -74,7 +74,14 @@ function idsEqual(a, b) {
 // so a guard built on `Number.isFinite` silently rejects every real 64-bit
 // id — `Number.isFinite(7n) === false`. This accepts either representation,
 // unlike `Number.isFinite`, which only ever accepts the `number` half.
-function isIdLike(v) {
+//
+// Exported because the SAME ids flow back OUT through the action vocabulary:
+// src/decision-loop.js injects `world.self.runtimeEntityId` — whatever
+// representation this module stored — straight into break_block, so
+// src/actions.js must accept exactly what this predicate accepts. One
+// predicate, both directions; a second hand-rolled guard is how the two halves
+// drift apart (#34).
+export function isIdLike(v) {
   return typeof v === 'bigint' || (typeof v === 'number' && Number.isFinite(v))
 }
 
