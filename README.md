@@ -122,8 +122,12 @@ is a deliberate stretch goal, not part of this layer.
 
 An opt-in packet recorder (`src/recorder.js`, `RECORD_PACKETS` in `.env`,
 default off) appends every inbound and outbound packet to a JSONL trace, with
-auth-shaped fields (tokens, XUIDs, network/session ids) redacted before
-writing. The next time the bot runs live, that trace becomes a real fixture
+auth-shaped fields (tokens, XUIDs, session ids, addresses, keys/certificates)
+redacted before writing. Redaction is deliberately case-sensitive for
+NetherNet's transport id: camelCase `networkId` is redacted, while Bedrock's
+own snake_case `network_id` — the **item type id** on every inventory item —
+is not, since redacting it would strip exactly the field this corpus is
+captured to preserve. The next time the bot runs live, that trace becomes a real fixture
 corpus for this layer and whatever is built on top of it — at no extra cost
 and with no extra live run requested. **Any trace committed to this public
 repo must be reviewed first** — if you are not confident it carries no bearer

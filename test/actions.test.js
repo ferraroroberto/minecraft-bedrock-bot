@@ -47,6 +47,22 @@ test('buildBreakBlockPackets emits start_break then stop_break at the same posit
   }
 })
 
+test('#34: buildBreakBlockPackets accepts a BigInt runtimeEntityId — varint64 ids decode to BigInt on a live session', () => {
+  // src/decision-loop.js injects world.self.runtimeEntityId verbatim, and
+  // src/world.js stores whatever protodef decoded — a BigInt for a varint64.
+  // A Number.isInteger guard here refused every live break_block (and blamed a
+  // missing argument, not its type).
+  const packets = buildBreakBlockPackets({ runtimeEntityId: 7n, x: 1, y: 64, z: 2, face: 1 })
+  assert.equal(packets.length, 2)
+  for (const p of packets) assert.equal(p.params.runtime_entity_id, 7n, 'the id is passed through unconverted')
+})
+
+test('#34: buildBreakBlockPackets still refuses a runtimeEntityId that is neither a number nor a BigInt', () => {
+  for (const bad of [undefined, null, '7', NaN, Infinity, {}]) {
+    assert.throws(() => buildBreakBlockPackets({ runtimeEntityId: bad, x: 1, y: 64, z: 2, face: 1 }), InvalidActionArgsError)
+  }
+})
+
 test('buildBreakBlockPackets refuses non-integer coordinates and an out-of-range face', () => {
   assert.throws(() => buildBreakBlockPackets({ runtimeEntityId: 7, x: 1.5, y: 64, z: 2, face: 1 }), InvalidActionArgsError)
   assert.throws(() => buildBreakBlockPackets({ runtimeEntityId: 7, x: 1, y: 64, z: 2, face: 6 }), InvalidActionArgsError)
