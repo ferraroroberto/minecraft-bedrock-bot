@@ -4,5 +4,12 @@
 # description, exposed services). Schema: fleet-config/architecture/README.md.
 layer       = "working-pipe"
 icon        = "⛏️"
-description = "Headless Node bot that joins a Minecraft Bedrock Realm over NetherNet."
+description = "Headless Node bot on a Minecraft Bedrock Realm (NetherNet) — world model, movement, and a safety-gated action vocabulary driven by an LLM decision loop on the local LLM hub."
+# `tag` is a single [relation, target] pair — system-map.html renders exactly
+# tag[0] and tag[1] — so this card cannot show both outward edges. The Realm
+# keeps it: it is the system this repo exists to reach, and the one the map
+# already carries as an `external` node. The second real dependency — the local
+# LLM hub, which src/model-client.js routes the decision loop through — is named
+# in `description` instead. Revisit only if the fleet-config schema ever grows
+# multi-edge tags; don't silently swap the Realm out for the hub.
 tag         = ["→", "Minecraft Realm"]
