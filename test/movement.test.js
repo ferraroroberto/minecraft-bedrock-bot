@@ -6,7 +6,9 @@ import {
   distance3,
   rotationTowards,
   runMovementStream,
+  angleDiffDegrees,
   POSITION_TOLERANCE,
+  ROTATION_TOLERANCE_DEGREES,
   LOOK_AT_TICK_COUNT,
 } from '../src/movement.js'
 import { createWorldState } from '../src/world.js'
@@ -117,4 +119,57 @@ test('look_at rotates in place — position never changes — and succeeds with 
   assert.equal(result.ticksSent, LOOK_AT_TICK_COUNT)
   assert.deepEqual(ctx.getCurrent().self.position, { x: 0, y: 64, z: 0 })
   assert.ok(Math.abs(ctx.getCurrent().self.rotation.yaw - rotationTowards({ x: 0, y: 64, z: 0 }, { x: 10, y: 64, z: 0 }).yaw) < 0.01)
+})
+
+test('#34: angleDiffDegrees normalizes into (-180, 180] so the yaw wrap is not read as a full turn', () => {
+  assert.equal(angleDiffDegrees(181, -179), 0, 'same direction, opposite sides of the discontinuity')
+  assert.equal(angleDiffDegrees(-179, 181), 0)
+  assert.equal(angleDiffDegrees(0, 0), 0)
+  assert.equal(angleDiffDegrees(10, 0), 10)
+  assert.equal(angleDiffDegrees(-10, 0), -10)
+  assert.equal(angleDiffDegrees(370, 5), 5, 'a full extra turn is not a disagreement')
+  assert.equal(Math.abs(angleDiffDegrees(180, 0)), 180, 'an exact half-turn is a real 180° disagreement')
+  assert.equal(Math.abs(angleDiffDegrees(-180, 0)), 180)
+})
+
+/** A look_at whose server correction reports the same direction on the other side of the yaw wrap. */
+async function lookAtWithCorrectedRotation({ yawOffset, pitchOffset = 0 }) {
+  const start = { x: 0, y: 64, z: 0 }
+  const target = { x: 1.745, y: 64, z: -100 } // yaw lands near -179 — right on the wrap
+  const wanted = rotationTowards(start, target)
+  let tickCount = 0
+  const sleep = async () => {
+    tickCount += 1
+    if (tickCount === 1) {
+      const world = ctx.getWorld()
+      ctx.setWorld({
+        ...world,
+        self: {
+          ...world.self,
+          // Position must also move for the loop to notice a correction at all;
+          // look_at only judges the rotation.
+          position: { x: start.x + 0.5, y: start.y, z: start.z },
+          rotation: { pitch: wanted.pitch + pitchOffset, yaw: wanted.yaw + yawOffset },
+        },
+      })
+    }
+  }
+  const ctx = fakeCtx({ world: makeWorld({ position: start }), sleep })
+  return runMovementStream('look_at', target, ctx)
+}
+
+test('#34: look_at accepts a correction that crosses the yaw discontinuity but points the same way', async () => {
+  // Requested ~-179°, server reports ~181° — the SAME direction, 2° off. The
+  // un-normalized subtraction read that as a ~362° diff and failed a look_at
+  // that had actually landed.
+  const result = await lookAtWithCorrectedRotation({ yawOffset: 360 + 2 })
+  assert.equal(result.ok, true, `expected success, got: ${result.reason}`)
+  assert.equal(result.corrected, true)
+})
+
+test('#34: look_at still reports FAILURE when the corrected rotation genuinely points elsewhere', async () => {
+  const result = await lookAtWithCorrectedRotation({ yawOffset: 360 + ROTATION_TOLERANCE_DEGREES + 25 })
+  assert.equal(result.ok, false)
+  assert.equal(result.timedOut, true)
+  assert.match(result.reason, /server corrected rotation/)
 })

@@ -89,6 +89,21 @@ export function rotationTowards(from, target) {
   return { pitch, yaw }
 }
 
+/**
+ * Signed difference between two angles in degrees, normalized into (-180, 180].
+ *
+ * Yaw is periodic and the server is free to report the SAME direction on the
+ * other side of the discontinuity — a requested `-179` coming back corrected
+ * as `181` is a 2° disagreement, not a 360° one. A raw subtraction reads it as
+ * ~360 and fails a look_at that actually landed (#34).
+ */
+export function angleDiffDegrees(a, b) {
+  const wrapped = ((((a - b + 180) % 360) + 360) % 360) - 180
+  // The modulo above maps an exact half-turn to -180; report it as +180 so the
+  // result is a true (-180, 180] and |diff| is the same either way round.
+  return wrapped === -180 ? 180 : wrapped
+}
+
 /** How close counts as "arrived" — Bedrock float positions never land on an exact value. */
 export const POSITION_TOLERANCE = 0.35
 export const ROTATION_TOLERANCE_DEGREES = 5
@@ -182,7 +197,9 @@ export async function runMovementStream(kind, target, { client, getWorld, setWor
     return { ok: true, dryRun: false, ticksSent, corrected: correctedPosition !== null }
   }
 
-  const rotationDiff = Math.abs(currentRot.yaw - targetRotation.yaw) + Math.abs(currentRot.pitch - targetRotation.pitch)
+  const rotationDiff =
+    Math.abs(angleDiffDegrees(currentRot.yaw, targetRotation.yaw)) +
+    Math.abs(angleDiffDegrees(currentRot.pitch, targetRotation.pitch))
   if (rotationDiff > ROTATION_TOLERANCE_DEGREES) {
     const reason = `server corrected rotation away from the requested look target (diff ${rotationDiff.toFixed(1)}°)`
     log.warn?.('movement.unverified', reason)
