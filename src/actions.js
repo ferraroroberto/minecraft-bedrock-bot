@@ -30,6 +30,12 @@
 // will accept the action — only a live, explicitly-authorized `npm run spike`
 // can prove that.
 
+// The one import here, and deliberately a pure predicate rather than any world
+// state: #13's world model is where `runtimeEntityId` comes from (the decision
+// loop injects `world.self.runtimeEntityId` verbatim), so the guard below has
+// to accept exactly the representations that model stores — `BigInt` included.
+import { isIdLike } from './world.js'
+
 const AIR_ITEM = Object.freeze({ network_id: 0 })
 
 export class InvalidActionArgsError extends Error {
@@ -93,7 +99,11 @@ export function buildSelectSlotPacket({ slot }) {
  * @returns {Array<{name: string, params: object}>}
  */
 export function buildBreakBlockPackets({ runtimeEntityId, x, y, z, face }) {
-  must('break_block', Number.isInteger(runtimeEntityId), 'runtimeEntityId is required')
+  // NOT `Number.isInteger`: `runtime_entity_id` is a varint64 and decodes to a
+  // `BigInt` on a real session (`Number.isInteger(7n) === false`), so the old
+  // guard would have refused EVERY live break_block — with a message blaming a
+  // missing argument rather than its type (#34, same defect class as #23).
+  must('break_block', isIdLike(runtimeEntityId), 'runtimeEntityId is required (a number or BigInt entity id)')
   must('break_block', isIntBlockCoords(x, y, z), 'x, y, z must be integer block coordinates')
   must('break_block', Number.isInteger(face) && face >= 0 && face <= 5, 'face must be an integer 0-5 (BlockFace)')
   const position = { x, y, z }
