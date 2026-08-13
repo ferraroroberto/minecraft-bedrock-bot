@@ -1,0 +1,6 @@
+# patch-package writes and reads its patches with LF. This machine has
+# core.autocrlf=true, so without this a fresh Windows clone would get CRLF and
+# the patch could fail to apply — which, since #47, means the bot cannot
+# connect at all rather than merely losing a macOS convenience. Pin it for both
+# hosts (Windows tower + Mac Mini) rather than depend on per-machine git config.
+*.patch text eol=lf
