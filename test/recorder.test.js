@@ -3,11 +3,29 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createRecorder } from '../src/recorder.js'
+import { createRecorder, parseExcludeList, DEFAULT_EXCLUDED_PACKETS } from '../src/recorder.js'
 
 function tempFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-bot-recorder-'))
   return path.join(dir, 'trace.jsonl')
+}
+
+/**
+ * A write stream that records every `write` call, so an exclusion can be
+ * asserted at the STREAM boundary rather than by reading the file back — the
+ * point of the filter (#41) is that the excluded packet is never serialized or
+ * handed to I/O at all, which a file-contents assertion alone cannot show.
+ */
+function fakeFs() {
+  const writes = []
+  return {
+    writes,
+    mkdirSync: () => {},
+    createWriteStream: () => ({
+      write: (chunk) => writes.push(chunk),
+      end: (cb) => cb?.(),
+    }),
+  }
 }
 
 test('records inbound and outbound packets as readable JSONL', async () => {
@@ -170,6 +188,83 @@ test('#23: records a packet carrying a bigint field (varint64 decodes to BigInt)
   assert.equal(lines.length, 1, 'the packet must actually be written, not silently dropped')
   const parsed = JSON.parse(lines[0])
   assert.equal(parsed.packet.runtime_entity_id, '7', 'the bigint is stringified rather than crashing JSON.stringify')
+})
+
+test('#41: an excluded packet never reaches the write stream, in BOTH directions', async () => {
+  const fsImpl = fakeFs()
+  const recorder = createRecorder({ filePath: '/trace.jsonl', exclude: ['move_entity_delta'], fsImpl })
+
+  recorder.recordInbound('move_entity_delta', { runtime_entity_id: 7 })
+  recorder.recordOutbound('move_entity_delta', { runtime_entity_id: 7 })
+  recorder.recordInbound('update_block', { position: { x: 1, y: 2, z: 3 } })
+  recorder.recordOutbound('text', { message: 'hello' })
+  await recorder.close()
+
+  assert.equal(fsImpl.writes.length, 2, 'only the two non-excluded packets are written')
+  const written = fsImpl.writes.map((line) => JSON.parse(line))
+  assert.deepEqual(
+    written.map((entry) => [entry.direction, entry.name]),
+    [
+      ['inbound', 'update_block'],
+      ['outbound', 'text'],
+    ]
+  )
+  for (const chunk of fsImpl.writes) {
+    assert.ok(!chunk.includes('move_entity_delta'), 'the excluded name must not appear in any written chunk')
+  }
+})
+
+test('#41: the default exclude set drops the three high-frequency entity packets and nothing else', async () => {
+  const fsImpl = fakeFs()
+  const recorder = createRecorder({ filePath: '/trace.jsonl', fsImpl })
+
+  assert.deepEqual(recorder.excluded, ['set_entity_data', 'move_entity_delta', 'set_entity_motion'])
+
+  // The three that were 91.2% of the first live capture's bytes...
+  for (const name of DEFAULT_EXCLUDED_PACKETS) {
+    recorder.recordInbound(name, { runtime_entity_id: 7 })
+    recorder.recordOutbound(name, { runtime_entity_id: 7 })
+  }
+  // ...against the signal packets the fixture corpus exists for, which must
+  // ALL survive the default filter.
+  for (const name of ['level_chunk', 'add_entity', 'update_block', 'update_subchunk_blocks', 'add_item_entity', 'level_event', 'mob_equipment', 'inventory_content']) {
+    recorder.recordInbound(name, { n: 1 })
+  }
+  await recorder.close()
+
+  assert.deepEqual(
+    fsImpl.writes.map((line) => JSON.parse(line).name),
+    ['level_chunk', 'add_entity', 'update_block', 'update_subchunk_blocks', 'add_item_entity', 'level_event', 'mob_equipment', 'inventory_content']
+  )
+})
+
+test('#41: an empty exclude list records everything, including the default-excluded packets', async () => {
+  const fsImpl = fakeFs()
+  const recorder = createRecorder({ filePath: '/trace.jsonl', exclude: [], fsImpl })
+
+  recorder.recordInbound('set_entity_data', { runtime_entity_id: 7 })
+  await recorder.close()
+
+  assert.equal(fsImpl.writes.length, 1)
+  assert.deepEqual(recorder.excluded, [])
+})
+
+test('#41: RECORD_PACKETS_EXCLUDE — unset or blank means the DEFAULT set, not "record everything"', () => {
+  // Copying .env.example (which ships the key blank) must not silently re-arm
+  // the 2.4 GB-per-20-minutes behaviour the filter exists to stop.
+  assert.deepEqual(parseExcludeList(undefined), [...DEFAULT_EXCLUDED_PACKETS])
+  assert.deepEqual(parseExcludeList(null), [...DEFAULT_EXCLUDED_PACKETS])
+  assert.deepEqual(parseExcludeList(''), [...DEFAULT_EXCLUDED_PACKETS])
+  assert.deepEqual(parseExcludeList('   '), [...DEFAULT_EXCLUDED_PACKETS])
+})
+
+test('#41: RECORD_PACKETS_EXCLUDE=none is the explicit opt-out; any list replaces the default outright', () => {
+  assert.deepEqual(parseExcludeList('none'), [])
+  assert.deepEqual(parseExcludeList('  NONE  '), [])
+
+  assert.deepEqual(parseExcludeList('move_entity_delta'), ['move_entity_delta'])
+  // Tolerant of the spacing and stray commas a hand-edited .env picks up.
+  assert.deepEqual(parseExcludeList(' set_entity_data , Move_Entity_Delta ,, '), ['set_entity_data', 'move_entity_delta'])
 })
 
 test('creates missing parent directories', async () => {

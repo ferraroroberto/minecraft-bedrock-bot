@@ -13,7 +13,7 @@ import { resolveVersion } from './version.js'
 import { runSession } from './connect.js'
 import { createFaultGuard } from './faults.js'
 import { supervise, EXIT } from './supervise.js'
-import { createRecorder } from './recorder.js'
+import { createRecorder, parseExcludeList } from './recorder.js'
 
 const { Authflow, Titles } = authPkg
 const { RealmAPI } = realmsPkg
@@ -97,8 +97,19 @@ export async function main() {
   // recorder for the whole process lifetime — not per-session — so a trace
   // spanning several reconnects lands in a single continuous file.
   const recordPath = process.env.RECORD_PACKETS
-  const recorder = recordPath ? createRecorder({ filePath: recordPath }) : null
-  if (recorder) log.info('recorder', `recording packets to ${recordPath}`)
+  const recorder = recordPath
+    ? createRecorder({
+        filePath: recordPath,
+        exclude: parseExcludeList(process.env.RECORD_PACKETS_EXCLUDE),
+      })
+    : null
+  if (recorder) {
+    // The exclude set is logged, not just applied: a trace opened months from
+    // now is only trustworthy as a fixture corpus if what it omits is on the
+    // record (#41).
+    const dropped = recorder.excluded.length ? recorder.excluded.join(', ') : 'nothing'
+    log.info('recorder', `recording packets to ${recordPath} (excluding: ${dropped})`)
+  }
 
   // Stray faults from torn-down clients are swallowed only inside this window.
   faultGuard.setSupervising(true)
