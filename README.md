@@ -188,8 +188,10 @@ Dropping exactly those three takes the same capture to 31.5 MB, of which ~27 MB
 is one-shot registries and chunk streaming that scale with area explored rather
 than session length. All three are pure per-tick entity churn that no fixture
 consumer reads — `src/world.js` keys entities off `add_entity`/`remove_entity`,
-blocks off `update_block`/`update_subchunk_blocks`, inventory off
-`inventory_content`/`inventory_slot`. The list stays deliberately narrow for the
+blocks off `update_block` alone (see "not the same as confirmation of the
+whole reducer" below — `update_subchunk_blocks` is a known gap, not handled
+here), inventory off `inventory_content`/`inventory_slot`. The list stays
+deliberately narrow for the
 same reason it exists at all: a filter that quietly drops something a later
 layer needs is a fixture gap discovered months later, and re-capturing costs a
 live Realm session Roberto has to run in person.
