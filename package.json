@@ -9,6 +9,7 @@
     "postinstall": "patch-package",
     "spike": "node scripts/connect-spike.js",
     "hub-check": "node scripts/llm-hub-check.js",
+    "trace-stats": "node scripts/trace-stats.js",
     "verify": "node scripts/verify.js"
   },
   "dependencies": {

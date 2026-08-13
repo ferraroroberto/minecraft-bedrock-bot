@@ -134,6 +134,39 @@ repo must be reviewed first** — if you are not confident it carries no bearer
 token, XUID, invite code, or other player's identity, keep it gitignored
 instead.
 
+**Three packet types are excluded by default**, because unfiltered the recorder
+is unusable for the sessions it exists to capture. The first live capture —
+3m10s on 2026-08-11 — wrote 357.6 MB across 449,066 packets, putting a
+20-minute farm demo at roughly 2.4 GB. A bytes-per-type breakdown of that trace
+(`npm run trace-stats <file>`, and bytes rather than counts because count is not
+volume — `level_chunk` is 937 packets but 17.5 MB) shows why:
+
+| Packet | Packets | Bytes | Share |
+|---|---|---|---|
+| `set_entity_data` | 189,521 | 253.32 MB | 70.84% |
+| `move_entity_delta` | 195,342 | 61.80 MB | 17.28% |
+| `set_entity_motion` | 57,341 | 11.04 MB | 3.09% |
+| — everything else — | 6,862 | 31.45 MB | 8.79% |
+
+Dropping exactly those three takes the same capture to 31.5 MB, of which ~27 MB
+is one-shot registries and chunk streaming that scale with area explored rather
+than session length. All three are pure per-tick entity churn that no fixture
+consumer reads — `src/world.js` keys entities off `add_entity`/`remove_entity`,
+blocks off `update_block`/`update_subchunk_blocks`, inventory off
+`inventory_content`/`inventory_slot`. The list stays deliberately narrow for the
+same reason it exists at all: a filter that quietly drops something a later
+layer needs is a fixture gap discovered months later, and re-capturing costs a
+live Realm session Roberto has to run in person.
+
+Override with `RECORD_PACKETS_EXCLUDE` in `.env` (a comma-separated list, which
+replaces the default set outright). **Blank means the default set, not
+"record everything"** — `.env.example` ships the key blank, and copying it must
+not silently re-arm the 2.4 GB behaviour; the explicit opt-out is the literal
+`RECORD_PACKETS_EXCLUDE=none`. The filter lives in `createRecorder` itself, so
+inbound and outbound cannot drift apart, and the effective exclude set is logged
+at startup (`recorder — recording packets to … (excluding: …)`) so a trace
+opened months later is traceable to what it omits.
+
 **This layer is structurally correct against the pinned protocol definition,
 not yet empirically confirmed against a real packet stream.** All field names
 were verified against BedrockX's own `protocol.json` (and cross-checked
