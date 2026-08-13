@@ -1,13 +1,8 @@
 // Breadcrumbs for the pre-spawn NetherNet handshake.
 //
-// Why this exists (#47). A failed connect used to surface as exactly one line —
-// `connect_timeout (no spawn within 60000ms)` — for at least six materially
-// different failures: signalling never became ready, our offer was never sent,
-// the Realm host never answered it, ICE never completed, the transport
-// connected but the server said nothing, or packets flowed but spawn never
-// finished. That collapses distinct conditions into one message, which is
-// exactly what CLAUDE.md's "distinct error messages for distinct conditions"
-// rule forbids, and it left a real outage undiagnosable from the log.
+// Why this exists (#47): see README → "Handshake breadcrumbs" — a failed
+// connect used to collapse at least six materially different failures into
+// one unhelpful log line, leaving a real outage undiagnosable from the log.
 //
 // The handshake this observes, in order (BedrockX source, not guesswork):
 //
