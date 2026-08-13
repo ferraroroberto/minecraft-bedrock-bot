@@ -43,13 +43,24 @@ printf 'BOT_USERNAME=Gizmo6082\nREALM_ID=29251526\n' > .env
 npm run spike                     # prints a device code; sign in once in any browser
 ```
 
+### What `patches/bedrockx+1.3.4.patch` contains
+
+The pinned fork needs four fixes, all applied by `patch-package` on `postinstall`. Three of the four are what #47 turned out to be — the bot could not connect at all until every one was in place, and each was hidden behind the one before it. Regenerate with `npx patch-package bedrockx` if the pin ever moves; it fails loudly rather than silently no-opping.
+
+| Fix | File | Why |
+|---|---|---|
+| Lazy `RakClient` require | `src/client.js` | macOS load crash — see below |
+| Sign the identity assertion with the **session** keypair | `src/nethernet/src/client.js`, `src/nethernet.js`, `src/client.js` | upstream signed with a fresh throwaway key, so the Realm refused every offer with `CONNECTERROR 37` |
+| 1.26.40 protocol definitions + 2 ported native types | `src/protocol/protocol.json`, `src/datatypes/compiler-minecraft.js` | the bundled definitions were 1.26.30-era; 1.26.40 packets decoded as `Read error` |
+| `response_status_name` on `resource_pack_client_response` | `src/createClient.js` | 1.26.40 added a required field; omitting it threw during serialization and the server kicked with `unexpected_packet` |
+
+The protocol.json portion is ~3,200 lines of vendored data taken verbatim from `minecraft-data`'s `bedrock/1.26.40/protocol.json`; the hand-written part of the patch is ~110 lines across five files. `test/version.test.js` asserts the patch is applied, so a missing or failed patch fails the gate rather than a live connect.
+
 ### macOS: the BedrockX raknet patch
 
 BedrockX ships two committed prebuilt native binaries — `src/raknet/raknet.node` (Linux x86-64 ELF) and `src/raknet/win-raknet.node` (Windows PE32+) — and `binding.js` picks between exactly those two, falling through to the **Linux** one on any non-`win32` platform. On macOS that `dlopen` fails with `slice is not valid mach-o file` and the process dies at module load, before any network activity.
 
-We never use RakNet (this Realm is NetherNet), so `patches/bedrockx+1.3.4.patch` simply moves the `RakClient` require inside the `case "DEFAULT"` branch where it's actually used — mirroring what BedrockX's own `server.js` already does. The `DEFAULT` (legacy `ip:port`) transport remains unsupported on macOS, which is fine until such a Realm actually appears.
-
-If the pinned BedrockX commit is ever changed, the patch must be regenerated (`npx patch-package bedrockx`). It fails loudly rather than silently no-opping.
+We never use RakNet (this Realm is NetherNet), so the patch simply moves the `RakClient` require inside the `case "DEFAULT"` branch where it's actually used — mirroring what BedrockX's own `server.js` already does. The `DEFAULT` (legacy `ip:port`) transport remains unsupported on macOS, which is fine until such a Realm actually appears.
 
 ### Running over SSH
 
@@ -94,7 +105,32 @@ The bot is no longer a straight-line script — it runs a supervised loop that s
 - **Reconnect backoff** is per-condition. `server_id_conflict` starts at **30s** (the measured session-release window) and escalates 30 → 60 → 120 → 240 → 300s; an ordinary disconnect uses a shorter 5 → 15 → 30 → 60 → 120s ladder; API failures use their own. Jitter is added **upward only** — 30s is an empirical *lower* bound, so jittering below it would reintroduce the kick.
 - **The failure streak resets only after a connection has stayed up for 60s**, so a connection that establishes and immediately drops can never turn into a tight loop. After 10 consecutive failures without a stable connection it gives up and exits non-zero rather than looping silently.
 - **A single-instance lock** at `.secrets/bot.lock` holds the running PID. A second start on the same machine exits immediately, names the holder, and never touches it. A stale lock left by a `kill -9` is reclaimed automatically. It **cannot** see the Minecraft client signed in as the bot account, or a bot on the *other* machine — `server_id_conflict` handling is the real backstop for those.
-- **The client version is resolved from `minecraft-data`** rather than hardcoded, so it cannot announce a version the client can't actually speak. Override deliberately with `MC_VERSION` **and** `PROTOCOL_VERSION` together.
+- **The client version is resolved from `minecraft-data`** rather than hardcoded, so it cannot announce a version the client can't actually speak. Override deliberately with `MC_VERSION` **and** `PROTOCOL_VERSION` together. Note this controls only what is *announced* — see the three version gates in [Gotchas](#gotchas-worth-knowing).
+
+### Handshake breadcrumbs
+
+Everything above the packet layer used to be invisible: a failed connect produced one line, `connect_timeout (no spawn within 60000ms)`, for six materially different failures. `src/probe.js` observes the NetherNet handshake and names the stage the connection actually reached, so an unattended failure is diagnosable from the log alone. It is always on — there is no flag to remember — and self-removes its per-packet listeners after the first packet, so a 450k-packet session pays nothing for it.
+
+A healthy connect now reads:
+
+```
+INFO  signalling.ready — signalling websocket open and TURN credentials received
+INFO  rtc.offer_sent — WebRTC offer sent to the Realm host
+INFO  rtc.candidate_out — first local ICE candidate gathered
+INFO  rtc.answered — the Realm host answered our offer
+INFO  rtc.ice — checking
+INFO  rtc.ice — completed
+INFO  rtc.connected — WebRTC transport connected — waiting for the server to speak first
+INFO  packets.first — first inbound packet: network_settings
+INFO  play_status — login_success
+INFO  world.joined — position x=28.74 y=64.62 z=9.08
+INFO  connected — spawned and initialized
+```
+
+Read it by **where it stops**. The stage ladder is `created → authenticated → signalling_ready → offer_sent → answered → transport_connected → receiving_packets`, and a timeout reports the furthest one reached plus what stopping there implies — for example *"reached `offer_sent` … our offer was sent and the Realm host never answered"*. Two lines are worth knowing by sight:
+
+- **`rtc.connect_error`** — the host actively refused, with a decoded NetherNet error code (`37 (identity_verification_failed)`). An explicit refusal outranks the stage guess in the timeout summary. Minecraft documents none of these codes; the table in `src/probe.js` is transcribed from [`df-mc/go-nethernet`](https://github.com/df-mc/go-nethernet).
+- **`packets.first`** — if this is `play_status` rather than `network_settings`, the server rejected the protocol version before replying; expect an `outdated_client` kick next.
 
 **Exit codes** — so a `launchd`/`systemd` wrapper can tell "restart me" from "give up":
 
@@ -407,7 +443,10 @@ These each cost real debugging time; they are not obvious from any documentation
 - **Outgoing chat needs `category: 'authored'`.** Sending `'message_only'` serializes and round-trips perfectly through the protocol definition, but makes the server silently drop the connection ~16 seconds later. The field shape used here mirrors a real inbound chat packet captured off the wire.
 - **Chat source names carry formatting codes.** The server appends `§r` (e.g. `Roberto39764§r`), so naive `source_name === username` comparisons fail — strip `§.` first.
 - **Position comes off the raw `start_game` packet.** BedrockX re-emits raw packet names; there is no synthesized `spawn` event and no `client.startGameData` convenience property.
-- **The Realms API pins a client version.** It rejects anything but the current game version with `{"errorCode":6020,"errorMsg":"Unknown client version"}`, so `MC_VERSION` / `PROTOCOL_VERSION` in the spike must track the live game (currently `1.26.30` / `1001`).
+- **The Realms API pins a client version.** It rejects anything but the current game version with `{"errorCode":6020,"errorMsg":"Unknown client version"}`, so `MC_VERSION` / `PROTOCOL_VERSION` in the spike must track the live game (currently `1.26.40` / `2168`).
+- **There are *three* independent version gates, and passing one tells you nothing about the next.** This cost #47 most of its debugging time, because the first gate passing looked like proof the version was fine. In order: (1) the **Realms join API** rejects an unknown version with `400 errorCode 6020` — but it is the most lenient of the three and happily accepted `1.26.30` after the Realm had already moved to `1.26.40`; (2) the **game server** rejects the protocol number in `request_network_settings`, arriving as a `disconnect` with reason `outdated_client` *before any `network_settings` reply* — so "the first inbound packet was `play_status`, not `network_settings`" is the signature; (3) the **packet definitions** must then actually match, or the announced-and-accepted version decodes into `Read error for undefined : undefined`. `resolveVersion()` only controls what is *announced* — what is *serialized* comes from BedrockX's own bundled `src/protocol/protocol.json`, which `patches/` now keeps in step. `test/version.test.js` asserts that coupling so the two can never drift silently again.
+- **The NetherNet identity assertion must be signed with the session keypair.** BedrockX generated a *fresh throwaway* P-384 key in `nethernet/src/client.js createAssertion()` and signed the SDP fingerprint assertion with it. The server verifies that detached JWS against the public key the multiplayer session token was issued for, and the protected header carries neither `jwk` nor `x5u` — so there is no way for the server to learn an ephemeral key. Every offer was refused with `CONNECTERROR 37` (`identity_verification_failed`), which surfaced as *nothing at all*: no error, no packets, just a 60s timeout. Patched to sign with `client.ecdhKeyPair.privateKey`, which is what the library's own `sendLogin()` already does. **This was latent for as long as the fork existed and only started failing when Microsoft began enforcing it — expect the same class of thing again.**
+- **A silent NetherNet failure is a `CONNECTERROR` you were not listening for.** The signalling channel reports refusals as a `CONNECTERROR` signal whose payload is a bare integer, and BedrockX does nothing with it. `src/probe.js` now logs every one, decoded via a transcription of `df-mc/go-nethernet`'s `ErrorCode` table (Minecraft documents none of them). If a connect ever goes quiet again, `rtc.connect_error` is the first line to look for.
 - **`Client.close()` fires its signalling socket's teardown without awaiting it, and that teardown is not safe to wait for either.** `client.js:155` calls `this.nethernet.signalling.destroy()` but never awaits the returned promise, and nulls `this.nethernet` on the next line — so by the time `close()` returns, the actual WebSocket close handshake to the NetherNet signalling host (`wss://signal.franchise.minecraft-services.net`) is still in flight, and there is no longer a handle to await it from outside. Measured on the Windows tower (Node 24): after a clean SIGINT shutdown with the connection and lock already released, `process.getActiveResourcesInfo()` showed a lingering `TCPSocketWrap` (the signalling socket) plus timers; left alone, the process did not just hang — it **segfaulted roughly 15 seconds later**, twice in two independent runs, almost certainly from `@roamhq/wrtc`'s native WebRTC teardown finalizing late. This is a second, Windows-specific symptom of the same root cause as the macOS hang originally reported in #11 (which needed `kill -9`). Since neither the socket close nor the native cleanup is ours to fix or safe to await, `scripts/connect-spike.js` exits immediately (`process.exit(code)`) once `main()`'s own state (session, lock, recorder) is confirmed torn down, rather than wait on third-party cleanup that can crash.
 
 ## Running it on the Mac Mini

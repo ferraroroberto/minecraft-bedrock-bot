@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.115.0",
     "bedrockx": "github:thejfkvis/BedrockX#f4a43da64753edd678af039be346decf63802301",
     "dotenv": "^16.4.5",
+    "minecraft-data": "^3.113.1",
     "prismarine-auth": "^3.1.1",
     "prismarine-realms": "^1.6.0"
   },
