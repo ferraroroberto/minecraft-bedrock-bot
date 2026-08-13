@@ -10,6 +10,7 @@
     "spike": "node scripts/connect-spike.js",
     "hub-check": "node scripts/llm-hub-check.js",
     "trace-stats": "node scripts/trace-stats.js",
+    "mine-farm-ids": "node scripts/mine-farm-ids.js",
     "verify": "node scripts/verify.js"
   },
   "dependencies": {
