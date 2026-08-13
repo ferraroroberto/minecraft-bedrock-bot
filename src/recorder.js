@@ -37,31 +37,12 @@ const SENSITIVE_KEY_PATTERN = /token|xuid|xbox|address|session[_-]?id|invite|sec
 const SENSITIVE_CAMEL_KEY_PATTERN = /[Nn]etworkId/
 const REDACTED = '[REDACTED]'
 
-// Excluded by DEFAULT — the recorder is unusable without this. The first live
-// capture (3m10s on 2026-08-11) wrote 357.6 MB across 449,066 packets, which
-// puts a 20-minute farm-demo session at ~2.4 GB and blocked the recording #12
-// depends on (#41). A bytes-per-type breakdown of that trace — not a
-// packet-count one, since count is not volume: `level_chunk` is only 937
-// packets but 17.5 MB of `JSON.stringify`-expanded buffers — says these three
-// names are 91.2% of the bytes:
-//
-//   set_entity_data    189,521 pkts  253.32 MB  70.84%  (1,402 B/pkt)
-//   move_entity_delta  195,342 pkts   61.80 MB  17.28%    (332 B/pkt)
-//   set_entity_motion   57,341 pkts   11.04 MB   3.09%    (202 B/pkt)
-//
-// Dropping exactly these takes the same capture to 31.5 MB, of which ~27 MB is
-// one-shot registries (`crafting_data`, `item_registry`, `creative_content`,
-// `player_list`) and chunk streaming that scales with area explored, not with
-// session length. The steady-state remainder is under 1 MB/min.
-//
-// The list stays deliberately NARROW, and every other name is kept. A filter
-// that quietly drops something a later layer needs is a fixture gap discovered
-// months later, and re-capturing costs a live Realm session Roberto has to run
-// in person. All three are pure per-tick entity churn — position deltas,
-// metadata flags and velocity for every mob in render distance — none of which
-// any fixture consumer reads: src/world.js keys entities off `add_entity` /
-// `remove_entity`, blocks off `update_block` / `update_subchunk_blocks`, and
-// inventory off `inventory_content` / `inventory_slot`. Set
+// Excluded by DEFAULT — unfiltered the recorder is unusable (~2.4 GB for a
+// 20-minute farm-demo session). See README → "World state + packet recorder"
+// for the full bytes-per-type breakdown and rationale. Keep this list
+// deliberately NARROW: a filter that quietly drops something a later layer
+// needs is a fixture gap discovered months later, and re-capturing costs a
+// live Realm session Roberto has to run in person. Set
 // RECORD_PACKETS_EXCLUDE=none to record everything anyway.
 export const DEFAULT_EXCLUDED_PACKETS = Object.freeze([
   'set_entity_data',

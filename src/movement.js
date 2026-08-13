@@ -1,14 +1,7 @@
-// Movement (#17): Bedrock's player_auth_input is fundamentally unlike every
-// other action in #14's vocabulary — a client-driven, continuous PER-TICK
-// packet asserting the client's own position, not a one-shot command. The
-// packet name itself says so ("auth" — the client asserts authority over its
-// own position each tick); the server only talks back
-// (correct_player_move_prediction) when it disagrees. Silence is the
-// PROTOCOL'S OWN success signal for accepted movement, not a gap in world
-// modelling to work around — unlike chat (no ack at all) or use_item
-// (ambiguous effect), this is how client-authoritative prediction is
-// SUPPOSED to work. See src/perform-action.js for how that plays out in the
-// outcome-verification design.
+// Movement (#17). See README → "Movement" for why player_auth_input is
+// shaped differently from every other action in #14's vocabulary (a
+// continuous per-tick packet, not a one-shot command) and why silence is the
+// protocol's own success signal here.
 //
 // Field names read off the pinned BedrockX fork's own protocol.json
 // (node_modules/bedrockx/src/protocol/protocol.json, packet_player_auth_input
@@ -19,14 +12,11 @@
 // alone.
 //
 // Two assumptions this file makes that are NOT verified against a live
-// packet capture — flag as such in any PR touching this file:
-//   - Tick cadence: 50ms (20Hz), the standard Minecraft simulation tick
-//     rate. Nothing in the pin states the CLIENT's expected send rate for
-//     player_auth_input specifically; this is the conventional assumption,
-//     not a measured one.
-//   - Walk speed: ~0.2154 blocks/tick (Minecraft's normal walking speed,
-//     4.317 blocks/s ÷ 20 ticks/s), used only to size the naive step and the
-//     tick budget — not a claim about what the server will actually accept.
+// packet capture — flag as such in any PR touching this file (README has the
+// full reasoning for both):
+//   - Tick cadence: 50ms (20Hz), the standard Minecraft simulation tick rate.
+//   - Walk speed: ~0.2154 blocks/tick (4.317 blocks/s ÷ 20 ticks/s), used
+//     only to size the naive step and the tick budget.
 import { applySelfMove } from './world.js'
 
 export const DEFAULT_TICK_INTERVAL_MS = 50

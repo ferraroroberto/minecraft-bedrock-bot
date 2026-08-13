@@ -1,60 +1,19 @@
 // Block runtime ids and item network ids, READ OFF A REAL SESSION (#45).
 //
-// The first fixture-derived constants in this repo, and the provenance matters
-// as much as the values — hence this header rather than a bare table.
-//
-// WHY THESE CANNOT BE DERIVED. Two independent reasons, both load-bearing:
-//
-//   1. This Realm sends block ids as HASHES, not palette indices. start_game
-//      carries `block_network_ids_are_hashes`, and every observed id is a full
-//      signed 32-bit value (-604749536, 1670228562, ...) rather than a small
-//      index. A hash of the canonical block-state NBT is stable across
-//      sessions and servers for a given game version — which is what makes
-//      committing them worthwhile — but it is not something this repo can
-//      compute without re-implementing Mojang's NBT canonicalisation and
-//      hashing, and then trusting it. That is the "our encoder agrees with our
-//      decoder" trap the README's gotchas already document; a computed id that
-//      is subtly wrong looks exactly like a correct one until the bot breaks
-//      the wrong block in Roberto's real base.
-//   2. #13's world model deliberately does not decode the chunk palette
-//      (src/world.js's header), so nothing in this codebase maps an id to a
-//      name. There is no lookup to consult even in principle.
-//
-// So they were MEASURED. `scripts/mine-farm-ids.js` reads them back out of a
-// recorded trace, and re-running it against a fresh capture is how these get
-// re-confirmed after a game update.
+// See README → "Wheat farming: measured block and item ids" for why these
+// cannot be derived (hashed block ids, no palette decode in src/world.js) and
+// for the full re-measurement procedure. Re-run `scripts/mine-farm-ids.js`
+// against a fresh capture after any game-version bump.
 //
 // SOURCE TRACE: 2026-08-13, Realm "casa Chiquis" (UKSouth), client 1.26.40 /
-// protocol 2168, server engine 1.26.43. Roberto performed the sequence by hand
-// at a single wheat plant while the bot observed, unarmed:
+// protocol 2168, server engine 1.26.43 — one wheat plant at (42,63,39):
 //
-//   (42,63,39)  block_start_break
-//               update_block -> -604749536    the block left behind = AIR
-//               update_block -> 1485804093    seeds replanted = growth stage 0
-//               update_block -> 1424329270    after 1st bone meal
-//               update_block -> 1793178208    after 2nd bone meal
-//               update_block -> 1670228562    after 3rd bone meal
-//
-// WHAT THE LADDER DOES AND DOES NOT ESTABLISH. Bedrock wheat has eight growth
-// stages. The capture above walked five ids at one coordinate, so their
-// ORDERING is certain (each was observed strictly after the previous, at the
-// same block, in response to a known action) but their absolute stage NUMBERS
-// are not — bone meal advances a random number of stages per application, so
-// the three post-bone-meal ids are three of stages 1-7 without saying which.
-//
-// That imprecision is harmless HERE, and the reason is worth stating plainly
-// rather than leaving to be rediscovered: nothing in this module needs to know
-// a stage number. src/safety.js's checkBreakWhitelist is DENY-BY-DEFAULT, so
-// the immature stages do not need enumerating to be refused — an id that is
-// not MATURE_WHEAT is refused because it is not on the whitelist, whether we
-// have ever seen it or not. Enumerating stage 4 buys nothing and would invite
-// exactly the kind of guessed constant this header exists to forbid.
-//
-// The one id that DOES have to be exactly right is MATURE_WHEAT, because it is
-// the sole entry on the whitelist: too low and the bot destroys a growing crop
-// for no yield, too high and it refuses to harvest anything at all. It was
-// therefore confirmed by a separate NEGATIVE test rather than inferred from
-// the ladder's position — see its comment below.
+//   block_start_break        -604749536   AIR (block left behind)
+//   replant, 14.8s later     1485804093   WHEAT_STAGE_0
+//   1st bone meal            1424329270
+//   2nd bone meal            1793178208
+//   3rd bone meal            1670228562   MATURE_WHEAT — confirmed by a
+//                                         negative test, see its comment below
 
 /**
  * What a broken block becomes. Observed directly as the result of the
