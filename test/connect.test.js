@@ -139,6 +139,34 @@ test('a connect that never spawns times out instead of hanging forever', async (
   assert.equal(result.uptimeMs, 0)
 })
 
+test('a connect timeout names the handshake stage it stopped at (#47)', async () => {
+  // The bug this guards: one undifferentiated `no spawn within Nms` covered
+  // six distinct failures, so a real outage could not be diagnosed from the
+  // log at all. The reason string must carry the probe's account.
+  const client = new FakeClient()
+  const deps = fakeDeps(client)
+  const session = runSession({ ...deps, connectTimeoutMs: 10 })
+  await deps.ready
+  client.emit('session')
+
+  const result = await session
+  assert.equal(result.endedBy, 'connect_timeout')
+  assert.match(result.reason, /no spawn within 10ms/)
+  assert.match(result.reason, /reached authenticated/)
+  assert.match(result.reason, /signalling websocket never became ready/)
+})
+
+test('runSession attaches a real probe by default, without opt-in', async () => {
+  // Always-on is the point: the next unattended failure must be diagnosable
+  // without anyone having remembered to enable anything.
+  const client = new FakeClient()
+  const deps = fakeDeps(client)
+  const session = runSession({ ...deps, connectTimeoutMs: 10 })
+  await deps.ready
+  const result = await session
+  assert.match(result.reason, /reached created/)
+})
+
 test('an empty realm list is a clear, non-retryable error', async () => {
   const err = await resolveRealm({ api: { getRealms: async () => [] } }).catch((e) => e)
   assert.ok(err instanceof ClassifiedError)

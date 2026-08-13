@@ -22,6 +22,7 @@ import { createWorldState, reduce, WORLD_PACKET_NAMES } from './world.js'
 import { allPacketNames } from './protocol-packets.js'
 import { buildChatPacket } from './actions.js'
 import { isStopCommand } from './safety.js'
+import { createConnectProbe } from './probe.js'
 
 /** How long to wait for `play_status: player_spawn` before giving up on an attempt. */
 export const DEFAULT_CONNECT_TIMEOUT_MS = 60_000
@@ -125,6 +126,10 @@ export async function runSession({
   faultSignal = null,
   now = () => Date.now(),
   recorder = null,
+  // Always on, not opt-in: the whole point (#47) is that the NEXT unattended
+  // failure is diagnosable from the log without anyone having enabled anything
+  // first. Injectable only so tests can drive it.
+  probe = createConnectProbe({ log }),
 }) {
   const { realm, join, transport } = await resolveRealm({ api, realmId, context })
   log.info(
@@ -153,6 +158,7 @@ export async function runSession({
       clearTimeout(connectTimer)
       unsubscribeStop?.()
       unsubscribeFault?.()
+      probe?.detach()
       // Only close if the library has not already done so. A second close()
       // throws a TypeError on the NetherNet path (see the header note).
       if (!libraryClosed) {
@@ -170,6 +176,12 @@ export async function runSession({
         world,
       })
     }
+
+    // The handshake observer (src/probe.js). Attached first, so that its
+    // `connect_allowed` listener still runs after BedrockX's own — which is
+    // what makes the NetherNet internals reachable at exactly the right moment
+    // (see the header note in src/probe.js).
+    probe?.attach(client)
 
     // The world-model observer. reduce() is a pure function that is
     // documented to never throw (src/world.js) — a bad reducer must not be
@@ -219,7 +231,12 @@ export async function runSession({
     unsubscribeFault = faultSignal?.onFault?.(() => finish('signalling_fault', 'signalling_fault'))
 
     connectTimer = setTimeout(() => {
-      if (connectedAt === null) finish('connect_timeout', `no spawn within ${connectTimeoutMs}ms`)
+      if (connectedAt === null) {
+        // Never a bare "no spawn within Nms" — that one message covered six
+        // different failures and made #47 undiagnosable. describe() names the
+        // furthest stage the handshake reached and what stopping there implies.
+        finish('connect_timeout', `no spawn within ${connectTimeoutMs}ms — ${probe?.describe() ?? 'no probe attached'}`)
+      }
     }, connectTimeoutMs)
     connectTimer.unref?.()
 
