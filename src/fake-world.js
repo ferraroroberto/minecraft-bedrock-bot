@@ -1,25 +1,14 @@
-// The fake world (#15, Layer 3) — the primary test surface for the decision
-// loop, and the reason the whole layer can be verified with no Realm, no
-// network and no account.
+// The fake world (#15, Layer 3). See README → "The fake world" for why this
+// exists (the primary test surface for the decision loop, verified with no
+// Realm/network/account) and what it can/cannot prove.
 //
 // It presents the same surface the real client does — `client.write(name,
 // params)` — interprets the outbound packets #14's vocabulary produces,
 // mutates its own state, and then EMITS SYNTHESIZED INBOUND PACKETS THROUGH
-// THE REAL REDUCER (src/world.js `reduce`). That last part is deliberate: the
-// loop is not handed a hand-written world object, it observes state that was
-// built the same way a live session's would be, so Layer 2a is exercised for
-// real rather than mocked away. Even the initial state is seeded by feeding
-// `start_game` / `inventory_content` / `update_block` through reduce().
+// THE REAL REDUCER (src/world.js `reduce`), including the seeded initial
+// state. That is deliberate — see README for why it matters.
 //
-// WHAT THIS CAN AND CANNOT PROVE. It proves the loop is internally consistent:
-// that actions are chosen, gated, executed, and verified from world state, and
-// that a lying model fails. It CANNOT prove the real server agrees, because
-// every rule below is OUR assumption about server behaviour, not a measured
-// one — the same "our encoder agrees with our decoder" trap already documented
-// for #13 and #14 in the README. This repo has been burned once by a packet
-// that serialized perfectly and was still semantically wrong.
-//
-// One assumption is worth naming precisely, because it is a real open
+// One assumption is worth naming precisely here, because it is a real open
 // question rather than a simplification: PLACE. #14's own outcome
 // verification watches the CLICKED coordinate (src/perform-action.js
 // place_block's verify reads args.x/y/z), so this world sets the new block

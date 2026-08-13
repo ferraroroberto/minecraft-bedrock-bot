@@ -2,37 +2,18 @@
 //
 // `npm run mine-farm-ids .secrets/trace-farm.jsonl`
 //
-// WHY THIS SCRIPT EXISTS. src/blocks.js needs real `block_runtime_id`s for the
-// wheat growth stages and farmland, and real item `network_id`s for seeds and
-// wheat. None of them can be derived from the protocol definition: #13's world
-// model deliberately does not decode the chunk palette, and this server sends
-// block ids as HASHES rather than palette indices (start_game's
-// `block_network_ids_are_hashes`), so they are opaque 32-bit values with no
-// name attached anywhere on the wire. Inventing them would repeat the trap the
-// README's gotchas already document — our encoder agreeing with our decoder
-// proves nothing about what the server does.
-//
-// So the ids get READ OFF A REAL SESSION, and this is the reader. Two separate
-// mechanisms, because the wire gives the two halves away very differently:
-//
-//   ITEMS are easy and exact. `item_registry` is a one-shot inbound packet
-//   carrying the server's whole item table as {name, runtime_id} — 1,976
-//   entries on this Realm. `minecraft:wheat_seeds` is simply in there. No
-//   experiment is needed; any trace that got past login already contains it.
-//
-//   BLOCKS have no such table, so they are mined BEHAVIOURALLY: bone-meal a
-//   wheat plant and the server sends one block change per growth stage, at the
-//   SAME coordinate, within a second or two. Grouping every observed block
-//   change by position and printing each position's id sequence in time order
-//   therefore prints the growth ladder directly — the ordering IS the
-//   experiment's output, which is why --transitions sorts by position rather
-//   than by frequency.
+// See README → "Wheat farming: measured block and item ids" for why these ids
+// can't be derived from the protocol definition and for the two-mechanism
+// story (items exact off `item_registry`, blocks mined behaviourally from the
+// growth ladder).
 //
 // Reads BOTH block-change channels. `update_block` carries one block and calls
 // the field `block_runtime_id`; `update_subchunk_blocks` carries a batch and
 // calls it `runtime_id`. Mining only the first would silently miss whichever
 // channel the server happens to use for crops — the very question a live
-// capture is being spent to answer.
+// capture is being spent to answer. (This script deliberately reads both;
+// src/world.js's `reduce()` does not — see its header and README → "World
+// state + packet recorder" for that known gap.)
 //
 // Streams line by line and pulls the packet name with a regex before parsing:
 // these traces run to hundreds of megabytes, and JSON.parse on every line
