@@ -88,10 +88,13 @@ const STOP_COMMAND = 'bot stop'
 
 /**
  * Chat kill-switch matcher. Inbound chat is untrusted input — including from
- * a player who is not Roberto, and including a message an LLM (Layer 3,
- * not built yet) might otherwise be asked to interpret — so this matches a
- * narrow literal command only, never something an LLM parses or reasons
- * about. Wired into src/connect.js's inbound 'text' handler.
+ * a player who is not Roberto, and including a message the Layer 3 goal path
+ * (src/decision-loop.js, src/prompt.js, src/observation.js,
+ * src/model-reply.js, src/goals.js) would otherwise ask an LLM to interpret
+ * — so this matches a narrow literal command only, never something an LLM
+ * parses or reasons about. That asymmetry is deliberate: `bot stop` stays a
+ * narrow literal precisely because the goal path landing beside it in
+ * src/connect.js's inbound 'text' handler is LLM-interpreted.
  * @param {string} message
  */
 export function isStopCommand(message) {
