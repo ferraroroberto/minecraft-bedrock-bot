@@ -1,7 +1,5 @@
 # Project Instructions
 
-Canonical instructions for AI coding agents working in this repository. Claude Code reads this file directly as project memory. Other agents (Cursor, Codex, etc.) reach it via the one-line `AGENTS.md` pointer.
-
 ## This repository
 
 Node.js (ESM) client that authenticates a second Microsoft/Xbox account and joins Roberto's Minecraft Bedrock Realm via **[BedrockX](https://github.com/thejfkvis/BedrockX)**, pinned by commit in `package.json`. Not `bedrock-protocol` — that library **cannot connect to this Realm at all**: the Realm has migrated to NetherNet (`NETHERNET_JSONRPC`) and `bedrock-protocol` speaks only RakNet for Realms. Read README → "Why BedrockX and not `bedrock-protocol`" before touching the connect path. `README.md` has setup, layout, usage, and the hard-won protocol gotchas.
@@ -16,11 +14,11 @@ Two hosts: the Windows tower (dev) and the Mac Mini at `roberto@192.168.0.14` (A
 
 Decisions recorded so they are not re-litigated (rationale in issue #8):
 
-- **Test runner: `node --test`**, not vitest — zero new dependencies, native ESM, no config. The three fleet repos on vitest all test browser-side DOM modules, which doesn't transfer to a headless CLI. It weighs more here: the dependency tree already carries a single-maintainer GitHub fork (BedrockX) pinned by commit plus a `patch-package` hook, so new dev dependencies are real supply-chain surface.
+- **Test runner: `node --test`**, not vitest — zero new dependencies, native ESM, no config. The fleet repos on vitest all test browser-side DOM modules, which doesn't transfer to a headless CLI, and the dependency tree already carries a single-maintainer GitHub fork (BedrockX) pinned by commit plus a `patch-package` hook, so new dev dependencies are real supply-chain surface.
 - **No linter, no type checker.** `node --check` already covers the parse-level ground `ruff` covers in Python; `mypy --strict` has no worthwhile equivalent in plain JS. Revisit when `src/` outgrows a handful of modules.
 - **No `scripts/verify-before-ship.ps1`.** PowerShell is unrunnable on the Mac Mini, the host that matters most. `/issue-finish` reads the gate command from this file, so `npm run verify` is fully compatible.
-- **No CI, deliberately.** CI is advisory in this fleet and its only documented signal beyond the local gate is an e2e suite — which this repo cannot have (the credential / `server_id_conflict` wall above). It would duplicate the gate and add nothing. If it is ever added, follow the fleet's GitHub Actions CI conventions (pinned `windows-2025` runner, Node-24 action majors, one-trigger-per-commit) and write a `## CI expectations` block at that point — not before.
-- **No packet-serialization round-trip tests.** The repo's own evidence says false confidence: the `category: 'message_only'` bug round-tripped through the protocol definition *perfectly* and still made the server drop the connection ~16 s later. The real failure modes here are server-side semantics only a live connection reveals.
+- **No CI, deliberately.** CI is advisory in this fleet and its only documented signal beyond the local gate is an e2e suite — which this repo cannot have (the credential / `server_id_conflict` wall above). If it is ever added, follow the fleet's GitHub Actions CI conventions (pinned `windows-2025` runner, Node-24 action majors, one-trigger-per-commit) and write a `## CI expectations` block at that point — not before.
+- **No packet-serialization round-trip tests.** False confidence: the `category: 'message_only'` bug round-tripped through the protocol definition *perfectly* and still made the server drop the connection ~16 s later. The real failure modes here are server-side semantics only a live connection reveals.
 
 ### Restart recipe: a foreground CLI, **not** a tray
 
