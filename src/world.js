@@ -33,9 +33,14 @@
 // than `===` for exactly this reason — any single field is internally
 // consistent, but comparing IDS ACROSS packet types is not safe with `===`.
 //
-// This module is not yet empirically confirmed against a real packet stream
-// (see #13's own scope note) — only against the pinned protocol definition
-// and PMMP's independent implementation.
+// Empirically confirmed only for the packet types actually observed on the
+// wire so far — live captures on 2026-08-13 decoded `update_block`,
+// `inventory_slot`/`inventory_content`, `mob_equipment`, `item_registry` and
+// the entity packets cleanly (see README → "World state + packet recorder").
+// Everything else here is still verified only against the pinned protocol
+// definition and PMMP's independent implementation, not against a real
+// stream — notably `correct_player_move_prediction`'s vec2f ordering, still
+// flagged unverified below.
 
 const HEALTH_ATTRIBUTE = 'minecraft:health'
 const HUNGER_ATTRIBUTE = 'minecraft:player.hunger'
