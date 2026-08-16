@@ -107,3 +107,13 @@ test('the whole observation stays JSON-serialisable — it goes straight into a 
   const observation = buildObservation(worldWith({ entities, blocks }))
   assert.doesNotThrow(() => JSON.stringify(observation), 'a BigInt unique id must not leak into the observation')
 })
+
+test('#53: a recent outcome carrying a BigInt arg (e.g. break_block\'s injected runtimeEntityId) is stringified, not left to crash JSON.stringify', () => {
+  const recentOutcomes = [
+    { action: 'break_block', args: { runtimeEntityId: 7n, x: 1, y: 64, z: 0, face: 1 }, result: { ok: true } },
+  ]
+  const observation = buildObservation(worldWith(), { recentOutcomes })
+
+  assert.equal(observation.recentOutcomes[0].args.runtimeEntityId, '7', 'a bigint arg is coerced to a string, not left raw')
+  assert.doesNotThrow(() => JSON.stringify(observation), 'a bigint outcome arg must not leak into the observation')
+})
