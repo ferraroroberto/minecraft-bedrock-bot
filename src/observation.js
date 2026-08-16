@@ -49,6 +49,25 @@ function distanceOrNull(from, to) {
   return from && to ? round2(distance3(from, to)) : null
 }
 
+/**
+ * Recursively coerce any BigInt to its string form so the result survives
+ * `JSON.stringify` — same rule `describeEntities` applies to `runtimeId`
+ * below, needed here because `decision-loop.js`'s INJECTED_ARGS can inject a
+ * `BigInt` runtime id (`world.self.runtimeEntityId`, a varint64) into an
+ * action's args, and `recentOutcomes` echoes those args verbatim (#53, same
+ * defect class as #23/#34).
+ */
+function stringifyBigInts(value) {
+  if (typeof value === 'bigint') return value.toString()
+  if (Array.isArray(value)) return value.map(stringifyBigInts)
+  if (value && typeof value === 'object') {
+    const out = {}
+    for (const [key, v] of Object.entries(value)) out[key] = stringifyBigInts(v)
+    return out
+  }
+  return value
+}
+
 function parseBlockKey(key) {
   const [x, y, z] = key.split(',').map(Number)
   return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? { x, y, z } : null
@@ -133,7 +152,7 @@ export function buildObservation(
     blocks: describeBlocks(world.blocks, self.position, maxBlocks),
     recentOutcomes: recentOutcomes.slice(-maxOutcomes).map((outcome) => ({
       action: outcome.action,
-      args: outcome.args,
+      args: stringifyBigInts(outcome.args),
       ok: outcome.result?.ok === true,
       refused: outcome.result?.refused === true,
       dryRun: outcome.result?.dryRun === true,
