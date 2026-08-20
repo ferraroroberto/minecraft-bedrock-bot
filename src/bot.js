@@ -14,6 +14,7 @@ import { runSession } from './connect.js'
 import { createFaultGuard } from './faults.js'
 import { supervise, EXIT } from './supervise.js'
 import { createRecorder, parseExcludeList } from './recorder.js'
+import { createRegionWatcher } from './region.js'
 
 const { Authflow, Titles } = authPkg
 const { RealmAPI } = realmsPkg
@@ -92,6 +93,9 @@ export async function main() {
 
   const faultGuard = createFaultGuard({ log })
   const backoff = createBackoff()
+  // One watcher for the whole process, not per-session: it exists to compare an
+  // attempt with the one before it (#42).
+  const regionWatcher = createRegionWatcher()
 
   // Opt-in packet trace (see .env.example RECORD_PACKETS), default off. One
   // recorder for the whole process lifetime — not per-session — so a trace
@@ -133,6 +137,7 @@ export async function main() {
           stopSignal,
           faultSignal: faultGuard.faultSignal,
           recorder,
+          regionWatcher,
         }),
     })
   } finally {

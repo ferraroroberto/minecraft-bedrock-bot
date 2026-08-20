@@ -131,6 +131,8 @@ Read it by **where it stops**. The stage ladder is `created → authenticated �
 
 - **`rtc.connect_error`** — the host actively refused, with a decoded NetherNet error code (`37 (identity_verification_failed)`). An explicit refusal outranks the stage guess in the timeout summary. Minecraft documents none of these codes; the table in `src/probe.js` is transcribed from [`df-mc/go-nethernet`](https://github.com/df-mc/go-nethernet).
 - **`packets.first`** — if this is `play_status` rather than `network_settings`, the server rejected the protocol version before replying; expect an `outdated_client` kick next.
+- **`kicked`** — the disconnect reason named from the pinned protocol's `DisconnectFailReason` enum, with the raw code kept beside it (`host_disconnected (140)`); a code the pin does not know degrades to the bare number. Until #42 a stable session could end with nothing in the log but `140`.
+- **`realm.region_changed`** — the Realm resolved to a different region than the previous attempt (`NorthEurope → UAENorth`). An observation only: it does not steer retries. Each attempt already logged its region, but nothing compared one with the last, so in #42 three consecutive ~60s failures into a flipped region went unremarked.
 
 **Exit codes** — so a `launchd`/`systemd` wrapper can tell "restart me" from "give up":
 

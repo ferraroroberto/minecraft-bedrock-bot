@@ -23,6 +23,7 @@ import { allPacketNames } from './protocol-packets.js'
 import { buildChatPacket } from './actions.js'
 import { isStopCommand } from './safety.js'
 import { createConnectProbe } from './probe.js'
+import { describeDisconnectReason } from './disconnect-reasons.js'
 
 /** How long to wait for `play_status: player_spawn` before giving up on an attempt. */
 export const DEFAULT_CONNECT_TIMEOUT_MS = 60_000
@@ -126,16 +127,30 @@ export async function runSession({
   faultSignal = null,
   now = () => Date.now(),
   recorder = null,
+  // Created once per process (src/bot.js) so one attempt can be compared with
+  // the previous one; null in the tests that do not care (#42).
+  regionWatcher = null,
   // Always on, not opt-in: the whole point (#47) is that the NEXT unattended
   // failure is diagnosable from the log without anyone having enabled anything
   // first. Injectable only so tests can drive it.
   probe = createConnectProbe({ log }),
 }) {
   const { realm, join, transport } = await resolveRealm({ api, realmId, context })
-  log.info(
-    'realm.resolved',
-    `"${realm.name}" transport=${transport} region=${join.sessionRegionData?.regionName ?? 'unknown'}`
-  )
+  const region = join.sessionRegionData?.regionName ?? null
+  log.info('realm.resolved', `"${realm.name}" transport=${transport} region=${region ?? 'unknown'}`)
+
+  // A region flip correlated with total connect failure in #42, and nothing in
+  // the log said it had happened. Its own line, at warn, because the previous
+  // attempt's region is gone from the reader's eye by the time it matters.
+  const regionChange = regionWatcher?.note(region)
+  if (regionChange?.changed) {
+    log.warn(
+      'realm.region_changed',
+      `the Realm resolved to a different region than the previous attempt: ` +
+      `${regionChange.previous} → ${regionChange.current} — if connects keep failing from here, ` +
+      `the routing change is the first thing to suspect`
+    )
+  }
 
   const client = createClient(
     buildClientOptions({ join, transport, authflow, username, profilesFolder, version })
@@ -293,7 +308,9 @@ export async function runSession({
     client.on('kick', (packet) => {
       const reason = packet?.reason ?? 'unknown'
       libraryClosed = true // close() is about to run inside the library
-      log.warn('kicked', `${reason}${packet?.message ? ` — ${packet.message}` : ''}`)
+      // Name AND code: the enum name is what makes the kick diagnosable, the
+      // raw code is what stays comparable with an older log line (#42).
+      log.warn('kicked', `${describeDisconnectReason(packet?.reason)}${packet?.message ? ` — ${packet.message}` : ''}`)
       finish('kick', reason)
     })
 
