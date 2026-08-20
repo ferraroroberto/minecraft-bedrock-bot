@@ -2,8 +2,16 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { runSession, buildClientOptions, resolveRealm, ClassifiedError } from '../src/connect.js'
+import { createRegionWatcher } from '../src/region.js'
 
 const silentLog = { info: () => {}, warn: () => {}, error: () => {} }
+
+/** A logger that keeps its lines, for asserting on what an incident log will say. */
+function recordingLog() {
+  const lines = []
+  const record = (level) => (event, detail) => lines.push(`${level} ${event}${detail ? ` — ${detail}` : ''}`)
+  return { lines, info: record('INFO'), warn: record('WARN'), error: record('ERROR') }
+}
 
 /** Stand-in for a bedrockx Client, recording how often close() is called. */
 class FakeClient extends EventEmitter {
@@ -28,21 +36,27 @@ class FakeClient extends EventEmitter {
 // runSession awaits two API calls before it attaches any handler, so a test
 // that emits too early settles nothing and hangs. `ready` resolves the moment
 // the client is created ??? handlers attach synchronously right after.
-function fakeDeps(client) {
+function fakeDeps(client, { region = null, log = silentLog } = {}) {
   let markReady
   const ready = new Promise((resolve) => { markReady = resolve })
   return {
     ready,
     api: {
       getRealms: async () => [{ id: 1, name: 'test realm' }],
-      rest: { get: async () => ({ networkProtocol: 'NETHERNET_JSONRPC', address: 'guid-here' }) },
+      rest: {
+        get: async () => ({
+          networkProtocol: 'NETHERNET_JSONRPC',
+          address: 'guid-here',
+          ...(region ? { sessionRegionData: { regionName: region } } : {}),
+        }),
+      },
     },
     createClient: () => { markReady(); return client },
     authflow: {},
     username: 'Gizmo6082',
     profilesFolder: '/tmp/x',
     version: { version: '1.26.30', protocolVersion: 1001 },
-    log: silentLog,
+    log,
     context: {},
   }
 }
@@ -71,6 +85,76 @@ test('a kick followed by the library close settles ONCE and never double-closes'
   assert.equal(result.reason, 'server_id_conflict')
   assert.equal(result.connected, true)
   assert.equal(client.closeCalls, 0, 'library already closed — we must not close again')
+})
+
+test('a kick names the reason as well as the code (#42)', async () => {
+  // The live incident logged `kicked — 140` and nothing else, which made the
+  // end of a stable 3m10s session impossible to explain afterwards.
+  const client = new FakeClient()
+  const log = recordingLog()
+  const deps = fakeDeps(client, { log })
+  const session = runSession(deps)
+  await deps.ready
+  spawn(client)
+  client.emit('kick', { reason: 140 })
+  client.emit('close', undefined)
+
+  const result = await session
+  assert.equal(result.endedBy, 'kick')
+  assert.equal(result.reason, 140, 'the raw reason still reaches the supervisor untouched')
+  assert.ok(
+    log.lines.some((line) => line === 'WARN kicked — host_disconnected (140)'),
+    `expected the named kick reason, got: ${log.lines.join(' | ')}`
+  )
+})
+
+test('a kick with a code the pinned protocol does not know still logs the code', async () => {
+  const client = new FakeClient()
+  const log = recordingLog()
+  const deps = fakeDeps(client, { log })
+  const session = runSession(deps)
+  await deps.ready
+  spawn(client)
+  client.emit('kick', { reason: 99999, message: 'from the future' })
+  client.emit('close', undefined)
+
+  await session
+  assert.ok(
+    log.lines.some((line) => line === 'WARN kicked — 99999 — from the future'),
+    `expected a graceful fallback to the bare code, got: ${log.lines.join(' | ')}`
+  )
+})
+
+test('a region change between attempts gets its own warn naming both regions (#42)', async () => {
+  // Every attempt already logged its region; nothing compared one attempt with
+  // the previous, so three ~60s failures into a flipped region went unremarked.
+  const regionWatcher = createRegionWatcher()
+
+  const first = new FakeClient()
+  const firstLog = recordingLog()
+  const firstDeps = fakeDeps(first, { region: 'NorthEurope', log: firstLog })
+  const firstSession = runSession({ ...firstDeps, regionWatcher })
+  await firstDeps.ready
+  first.emit('close', 'kicked')
+  await firstSession
+  assert.ok(
+    !firstLog.lines.some((line) => line.includes('realm.region_changed')),
+    'the first resolve has nothing to compare against'
+  )
+
+  const second = new FakeClient()
+  const secondLog = recordingLog()
+  const secondDeps = fakeDeps(second, { region: 'UAENorth', log: secondLog })
+  const secondSession = runSession({ ...secondDeps, regionWatcher })
+  await secondDeps.ready
+  second.emit('close', 'gone')
+  await secondSession
+
+  const changed = secondLog.lines.find((line) => line.includes('realm.region_changed'))
+  assert.ok(changed, `expected a region-change warning, got: ${secondLog.lines.join(' | ')}`)
+  assert.match(changed, /^WARN /)
+  assert.match(changed, /NorthEurope/)
+  assert.match(changed, /UAENorth/)
 })
 
 test('a bare close (no kick) settles once', async () => {
