@@ -82,19 +82,7 @@ On first run, a Microsoft device-code sign-in URL + one-time code is printed —
 
 With `REALM_ID` left blank, the spike lists the bot account's joined/owned Realms and picks the first — note the target Realm's ID from that output and set `REALM_ID` in `.env` for a deterministic connect on future runs.
 
-Expected output:
-
-```
-[realm] "casa Chiquis" transport=NETHERNET_JSONRPC region=FranceCentral
-[session] +0.5s Xbox Live session established
-[play_status] +1.9s login_success
-[join] +3.3s received start_game — connected to the world
-[position] x=28.74 y=64.62 z=9.08
-[play_status] +6.7s player_spawn
-[spawn] +6.7s bot has spawned
-[chat->] +6.7s Gizmo6082 has connected.
-[chat<-] +28.2s Roberto39764: hello there
-```
+For what a successful run's log actually looks like, see "A healthy connect now reads" under [Handshake breadcrumbs](#handshake-breadcrumbs) below — that block is generated straight from `src/log.js`'s real output format and is kept current with it.
 
 Stop it with Ctrl-C; it stays connected indefinitely otherwise, reconnecting on its own.
 
@@ -188,11 +176,17 @@ volume — `level_chunk` is 937 packets but 17.5 MB) shows why:
 
 Dropping exactly those three takes the same capture to 31.5 MB, of which ~27 MB
 is one-shot registries and chunk streaming that scale with area explored rather
-than session length. All three are pure per-tick entity churn that no fixture
-consumer reads — `src/world.js` keys entities off `add_entity`/`remove_entity`,
-blocks off `update_block` alone (see "not the same as confirmation of the
-whole reducer" below — `update_subchunk_blocks` is a known gap, not handled
-here), inventory off `inventory_content`/`inventory_slot`. The list stays
+than session length. This is not a free trade: `move_entity_delta` **is** read
+by `reduce()` (`src/world.js`'s `HANDLERS` table) — it is the only mechanism by
+which a tracked entity's position updates after `add_entity`, and
+`src/observation.js` feeds that position to the model as each entity's
+`distance`. Blocks are keyed off `update_block` alone (see "not the same as
+confirmation of the whole reducer" below — `update_subchunk_blocks` is a known
+gap, not handled here), inventory off `inventory_content`/`inventory_slot`.
+So the default exclusion trades entity-position replay for 91% of the bytes —
+a capture intended as an entity-tracking fixture must set
+`RECORD_PACKETS_EXCLUDE` accordingly (at minimum dropping `move_entity_delta`
+from the excluded set costs the 17.28% share back). The list stays
 deliberately narrow for the
 same reason it exists at all: a filter that quietly drops something a later
 layer needs is a fixture gap discovered months later, and re-capturing costs a
