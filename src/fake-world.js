@@ -16,7 +16,7 @@
 // Only a live run can settle that, and if it turns out to be the adjacent
 // block then #14's verify and this world are wrong TOGETHER — which is
 // exactly the failure mode a self-consistent simulator cannot catch.
-import { createWorldState, reduce, getBlockAt } from './world.js'
+import { createWorldState, reduce, getBlockAt, parseBlockKey } from './world.js'
 
 /** Runtime id a broken block leaves behind. 0 is used as "air" throughout the tests; the real id is unknown until a live run. */
 export const DEFAULT_AIR_RUNTIME_ID = 0
@@ -160,8 +160,9 @@ export function createFakeWorld({
   emit('inventory_content', { window_id: 'inventory', input: inventory })
   emit('player_hotbar', { selected_slot: selectedHotbarSlot })
   for (const [key, runtimeId] of Object.entries(blocks)) {
-    const [x, y, z] = key.split(',').map(Number)
-    emit('update_block', { position: { x, y, z }, block_runtime_id: runtimeId })
+    const position = parseBlockKey(key)
+    if (!position) continue
+    emit('update_block', { position, block_runtime_id: runtimeId })
   }
   for (const entity of entities) {
     const packet = {
