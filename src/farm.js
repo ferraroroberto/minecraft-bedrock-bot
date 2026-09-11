@@ -39,6 +39,8 @@
 // src/decision-loop.js's verify() applies to a throwing predicate.
 import { MATURE_WHEAT, AIR } from './blocks.js'
 import { defineGoal } from './goals.js'
+import { parseBlockKey } from './world.js'
+import { containsPoint } from './safety.js'
 
 /**
  * Build an axis-aligned region from two opposite corners, in either order.
@@ -60,11 +62,6 @@ export function regionFromCorners(a, b) {
   }
 }
 
-function contains(region, x, y, z) {
-  const { min, max } = region
-  return x >= min.x && x <= max.x && y >= min.y && y <= max.y && z >= min.z && z <= max.z
-}
-
 /**
  * Every observed block inside `region`, as [{x, y, z, runtimeId}].
  *
@@ -79,10 +76,10 @@ function contains(region, x, y, z) {
 export function observedCellsIn(world, region) {
   const cells = []
   for (const [key, runtimeId] of world.blocks) {
-    const [x, y, z] = key.split(',').map(Number)
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue
-    if (!contains(region, x, y, z)) continue
-    cells.push({ x, y, z, runtimeId })
+    const position = parseBlockKey(key)
+    if (!position) continue
+    if (!containsPoint(region, position)) continue
+    cells.push({ ...position, runtimeId })
   }
   return cells
 }

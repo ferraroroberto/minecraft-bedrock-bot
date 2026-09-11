@@ -9,6 +9,27 @@
 // performAction gate in the right order.
 
 /**
+ * Axis-aligned containment test for a `{min,max}` region (src/farm.js's
+ * regionFromCorners shape). This is the ONE interpreter of that shape:
+ * checkRegion below is the safety envelope's enforcement point ("is this
+ * target allowed?") and src/farm.js's goal predicate is the membership test
+ * ("is this cell part of the farm?") — both must agree on the same box, so
+ * both call this rather than each re-deriving inclusive-bounds comparison
+ * independently (#60).
+ * @param {{min:{x,y,z}, max:{x,y,z}}} region
+ * @param {{x:number, y:number, z:number}} point
+ * @returns {boolean}
+ */
+export function containsPoint(region, point) {
+  const { min, max } = region
+  return (
+    point.x >= min.x && point.x <= max.x &&
+    point.y >= min.y && point.y <= max.y &&
+    point.z >= min.z && point.z <= max.z
+  )
+}
+
+/**
  * Bounded operating region check. Refuses and names the region — never
  * clamps. Clamping would turn a clear bug (a hallucinated coordinate) into a
  * plausible-looking WRONG action, which defeats the point of the envelope.
@@ -18,12 +39,8 @@
  */
 export function checkRegion(region, target) {
   if (!region) return { ok: true }
+  if (containsPoint(region, target)) return { ok: true }
   const { min, max } = region
-  const inside =
-    target.x >= min.x && target.x <= max.x &&
-    target.y >= min.y && target.y <= max.y &&
-    target.z >= min.z && target.z <= max.z
-  if (inside) return { ok: true }
   return {
     ok: false,
     refused: true,
