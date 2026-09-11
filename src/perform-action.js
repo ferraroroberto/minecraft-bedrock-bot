@@ -37,8 +37,12 @@ function refuse(reason) {
   return { ok: false, refused: true, reason }
 }
 
+// Same "empty slot" test src/observation.js describeInventory already applies:
+// network_id 0 is the protocol's own explicit "no item" payload (src/actions.js
+// AIR_ITEM), not merely undefined/null — a slot holding it is empty, not held.
 function heldItemAt(world, hotbarSlot) {
-  return world.inventory.windows.inventory?.[hotbarSlot] ?? null
+  const item = world.inventory.windows.inventory?.[hotbarSlot] ?? null
+  return item && Number.isFinite(item.network_id) && item.network_id !== 0 ? item : null
 }
 
 // One entry per vocabulary member. `spatial: true` means the action targets
