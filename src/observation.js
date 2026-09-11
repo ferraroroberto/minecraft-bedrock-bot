@@ -22,6 +22,7 @@
 // Numbers are rounded to 2dp: Bedrock float positions carry ~7 significant
 // digits of noise that cost tokens and buy the model nothing.
 import { distance3 } from './movement.js'
+import { parseBlockKey } from './world.js'
 
 export const DEFAULT_MAX_ENTITIES = 8
 export const DEFAULT_MAX_BLOCKS = 24
@@ -66,11 +67,6 @@ function stringifyBigInts(value) {
     return out
   }
   return value
-}
-
-function parseBlockKey(key) {
-  const [x, y, z] = key.split(',').map(Number)
-  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? { x, y, z } : null
 }
 
 /** Non-empty inventory slots only. network_id 0 is the protocol's own "no item" (see src/actions.js AIR_ITEM). */

@@ -68,7 +68,7 @@ export function createWorldState() {
 
 /** @returns {number|null} the block runtime id last observed at (x,y,z), or null if never seen. */
 export function getBlockAt(state, x, y, z) {
-  return state.blocks.get(`${x},${y},${z}`) ?? null
+  return state.blocks.get(blockKey({ x, y, z })) ?? null
 }
 
 function idsEqual(a, b) {
@@ -96,8 +96,20 @@ function toVec3(v) {
     : null
 }
 
-function toBlockKey(v) {
+// The `blocks` Map's key encoding is owned here — every other module that
+// needs to build or read one of these keys imports blockKey/parseBlockKey
+// rather than re-deriving the "x,y,z" format by hand (#60). Changing the
+// encoding (a dimension component, a different separator, packing to a
+// number) then only ever needs to happen in this one place.
+/** @returns {string|null} the "x,y,z" key for a block position, or null if any coordinate is missing/non-finite. */
+export function blockKey(v) {
   return v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z) ? `${v.x},${v.y},${v.z}` : null
+}
+
+/** @returns {{x:number,y:number,z:number}|null} inverse of blockKey, or null if `key` isn't a well-formed "x,y,z" key. */
+export function parseBlockKey(key) {
+  const [x, y, z] = key.split(',').map(Number)
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? { x, y, z } : null
 }
 
 function withSelf(state, patch) {
@@ -286,7 +298,7 @@ function reduceRemoveEntity(state, packet) {
 }
 
 function reduceUpdateBlock(state, packet) {
-  const key = toBlockKey(packet.position)
+  const key = blockKey(packet.position)
   if (!key || !Number.isFinite(packet.block_runtime_id)) return state
   const blocks = new Map(state.blocks)
   blocks.set(key, packet.block_runtime_id)
