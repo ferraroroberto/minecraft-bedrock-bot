@@ -99,12 +99,15 @@ function redact(value) {
  *   direction. Defaults to `DEFAULT_EXCLUDED_PACKETS`; pass `[]` for everything.
  * @param {() => number} [deps.now]
  * @param {typeof fs} [deps.fsImpl] injectable for tests
+ * @param {{ warn: (event: string, detail?: string) => void }} [deps.log] defaults to a no-op so
+ *   tests that don't care about logging don't have to supply one
  */
 export function createRecorder({
   filePath,
   exclude = DEFAULT_EXCLUDED_PACKETS,
   now = () => Date.now(),
   fsImpl = fs,
+  log = { warn: () => {} },
 }) {
   fsImpl.mkdirSync(path.dirname(filePath), { recursive: true })
   const stream = fsImpl.createWriteStream(filePath, { flags: 'a' })
@@ -112,7 +115,23 @@ export function createRecorder({
   // outbound cannot drift apart, and so a future third call site inherits it.
   const excluded = new Set(exclude)
 
+  // A disk-full, permission-denied, or directory-shaped `filePath` surfaces
+  // asynchronously on the stream, not synchronously from createWriteStream.
+  // Without this listener an 'error' event with no listener becomes a process
+  // `uncaughtException`, which src/faults.js treats as a BedrockX signalling
+  // fault and uses to end the live session — misattributing a full disk to
+  // the protocol layer and ending a Realm session the owner has to run in
+  // person. Log once, then turn every later append into a silent no-op
+  // instead of writing to (or crashing on) a stream already in error state.
+  let failed = false
+  stream.on('error', (err) => {
+    if (failed) return
+    failed = true
+    log.warn('recorder.failed', String(err?.message ?? err))
+  })
+
   function append(direction, name, packet) {
+    if (failed) return
     if (excluded.has(name)) return
     stream.write(JSON.stringify({ ts: now(), direction, name, packet: redact(packet) }) + '\n')
   }
@@ -122,7 +141,7 @@ export function createRecorder({
     excluded: Object.freeze([...excluded]),
     recordInbound: (name, packet) => append('inbound', name, packet),
     recordOutbound: (name, packet) => append('outbound', name, packet),
-    /** @returns {Promise<void>} resolves once the stream has flushed and closed. */
-    close: () => new Promise((resolve) => stream.end(resolve)),
+    /** @returns {Promise<void>} resolves once the stream has flushed and closed (or immediately, if it already failed). */
+    close: () => new Promise((resolve) => (failed ? resolve() : stream.end(resolve))),
   }
 }
