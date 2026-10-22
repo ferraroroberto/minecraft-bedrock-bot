@@ -105,6 +105,7 @@ export async function main() {
     ? createRecorder({
         filePath: recordPath,
         exclude: parseExcludeList(process.env.RECORD_PACKETS_EXCLUDE),
+        log,
       })
     : null
   if (recorder) {

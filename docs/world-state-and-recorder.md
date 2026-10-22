@@ -25,6 +25,10 @@ This is not a free trade: `move_entity_delta` **is** read by `reduce()` (`src/wo
 
 Override with `RECORD_PACKETS_EXCLUDE` in `.env` (a comma-separated list, which replaces the default set outright). **Blank means the default set, not "record everything"** — `.env.example` ships the key blank, and copying it must not silently re-arm the 2.4 GB behaviour; the explicit opt-out is the literal `RECORD_PACKETS_EXCLUDE=none`. The filter lives in `createRecorder` itself, so inbound and outbound cannot drift apart, and the effective exclude set is logged at startup (`recorder — recording packets to … (excluding: …)`) so a trace opened months later is traceable to what it omits.
 
+### Write failures
+
+A disk-full, permission-denied, or `RECORD_PACKETS` naming a directory surfaces asynchronously on the trace file's `WriteStream`, never from `createRecorder` itself. `createRecorder` listens for it and logs a single `recorder.failed` line, after which that recorder silently drops further packets instead of writing to (or crashing on) a stream already in error state — the live Realm session continues and is not sacrificed to a disk problem.
+
 ## What is empirically confirmed
 
 The reducer is confirmed for the packets it has actually seen, not merely structurally correct against the pinned protocol definition. All field names were verified against BedrockX's own `protocol.json` (and cross-checked against pmmp/BedrockProtocol's independent implementation for two cases the pin's own field names don't make obvious — see `src/world.js`'s header comment), and live captures decoded `update_block`, `inventory_slot`/`inventory_content`, `mob_equipment`, `item_registry` and the entity packets cleanly, with zero decode errors across 7,432 packets and 64 types.

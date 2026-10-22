@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { EventEmitter } from 'node:events'
 import { createRecorder, parseExcludeList, DEFAULT_EXCLUDED_PACKETS } from '../src/recorder.js'
 
 function tempFile() {
@@ -24,8 +25,22 @@ function fakeFs() {
     createWriteStream: () => ({
       write: (chunk) => writes.push(chunk),
       end: (cb) => cb?.(),
+      on: () => {},
     }),
   }
+}
+
+/**
+ * A fs shim whose `createWriteStream()` returns a REAL EventEmitter, so an
+ * `'error'` emitted with no listener attached reproduces Node's actual
+ * failure mode (an uncaught exception) rather than a shape this fake merely
+ * approximates.
+ */
+function failingFakeFs() {
+  const stream = new EventEmitter()
+  stream.write = () => true
+  stream.end = (cb) => cb?.()
+  return { mkdirSync: () => {}, createWriteStream: () => stream, stream }
 }
 
 test('records inbound and outbound packets as readable JSONL', async () => {
@@ -265,6 +280,30 @@ test('#41: RECORD_PACKETS_EXCLUDE=none is the explicit opt-out; any list replace
   assert.deepEqual(parseExcludeList('move_entity_delta'), ['move_entity_delta'])
   // Tolerant of the spacing and stray commas a hand-edited .env picks up.
   assert.deepEqual(parseExcludeList(' set_entity_data , Move_Entity_Delta ,, '), ['set_entity_data', 'move_entity_delta'])
+})
+
+test('#75: a WriteStream error is caught, logged once, and does not become an uncaughtException', async () => {
+  // Disk full, permission denied, or RECORD_PACKETS naming a directory all
+  // surface as an async 'error' on the stream, not a thrown error from
+  // createWriteStream. Before this fix nothing listened for it, so Node
+  // turned it into a process `uncaughtException` that src/faults.js
+  // misattributes to BedrockX and uses to end the live session.
+  const fsImpl = failingFakeFs()
+  const warnings = []
+  const log = { warn: (event, detail) => warnings.push([event, detail]) }
+  const recorder = createRecorder({ filePath: '/trace.jsonl', fsImpl, log })
+
+  fsImpl.stream.emit('error', new Error('ENOSPC: no space left on device'))
+  // A second error on the same stream must not produce a second log line.
+  fsImpl.stream.emit('error', new Error('ENOSPC: again'))
+
+  assert.equal(warnings.length, 1, 'exactly one recorder.failed line, not one per error event')
+  assert.equal(warnings[0][0], 'recorder.failed')
+  assert.match(warnings[0][1], /ENOSPC/)
+
+  // Appends after the stream has failed are silent no-ops, not crashes.
+  assert.doesNotThrow(() => recorder.recordInbound('start_game', { n: 1 }))
+  await recorder.close()
 })
 
 test('creates missing parent directories', async () => {
