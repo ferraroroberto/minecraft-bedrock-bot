@@ -3,7 +3,7 @@
 /**
  * Strip Minecraft's `§`-prefixed formatting codes from a string.
  *
- * The server appends codes to chat source names (e.g. `Roberto39764§r`), so a
+ * The server appends codes to chat source names (e.g. `ExamplePlayer1§r`), so a
  * naive `source_name === username` comparison silently fails. Two call sites
  * depend on this: XUID discovery off `player_list`, and echo-suppression of the
  * bot's own outgoing chat. A regression here makes the bot either lose its own

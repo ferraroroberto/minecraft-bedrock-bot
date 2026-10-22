@@ -2,9 +2,9 @@
 
 ## This repository
 
-Node.js (ESM) client that authenticates a second Microsoft/Xbox account and joins Roberto's Minecraft Bedrock Realm via **[BedrockX](https://github.com/thejfkvis/BedrockX)**, pinned by commit in `package.json`. Not `bedrock-protocol` — that library **cannot connect to this Realm at all**: the Realm has migrated to NetherNet (`NETHERNET_JSONRPC`) and `bedrock-protocol` speaks only RakNet for Realms. Read `docs/why-bedrockx.md` ("Why BedrockX and not `bedrock-protocol`") before touching the connect path. `README.md` has install, run, the gate and an index of `docs/`, which holds the per-feature reference and the hard-won protocol gotchas (`docs/gotchas.md`).
+Node.js (ESM) client that authenticates a second Microsoft/Xbox account and joins the owner's Minecraft Bedrock Realm via **[BedrockX](https://github.com/thejfkvis/BedrockX)**, pinned by commit in `package.json`. Not `bedrock-protocol` — that library **cannot connect to this Realm at all**: the Realm has migrated to NetherNet (`NETHERNET_JSONRPC`) and `bedrock-protocol` speaks only RakNet for Realms. Read `docs/why-bedrockx.md` ("Why BedrockX and not `bedrock-protocol`") before touching the connect path. `README.md` has install, run, the gate and an index of `docs/`, which holds the per-feature reference and the hard-won protocol gotchas (`docs/gotchas.md`).
 
-Two hosts: the Windows tower (dev) and the Mac Mini at `roberto@192.168.0.14` (Apple Silicon, the intended unattended **production** host). Anything added here must run on both.
+Two hosts: the Windows tower (dev) and the Mac Mini (Apple Silicon, the intended unattended **production** host; the host login is `<user>@<mac-mini-host>`, kept in the owner's private notes, never in this repo). Anything added here must run on both.
 
 ### Verification
 

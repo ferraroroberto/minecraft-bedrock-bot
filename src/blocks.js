@@ -28,7 +28,7 @@ export const AIR = -604749536
 
 /**
  * Wheat immediately after seeds are planted — growth stage 0. Observed as the
- * result of Roberto replanting at (42,63,39) 14.8s after breaking.
+ * result of the owner replanting at (42,63,39) 14.8s after breaking.
  *
  * Used to VERIFY a replant from world state (a seed placement that produced no
  * block change is a failed replant, not a successful one), never to authorise

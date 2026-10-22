@@ -233,7 +233,7 @@ test('the loop cannot break an immature crop even when the model asks it to (#45
 
 test('a cell outside the farm region is refused even if it holds mature wheat', async () => {
   // The region is the guard against a hallucinated coordinate reaching a real
-  // block in Roberto's base. Mature wheat somewhere else is still not ours.
+  // block in the owner's base. Mature wheat somewhere else is still not ours.
   const sim = createFakeWorld({
     position: { x: 0, y: 65, z: 0 },
     inventory: [SEEDS],

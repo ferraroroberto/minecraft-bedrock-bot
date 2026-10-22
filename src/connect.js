@@ -292,7 +292,7 @@ export async function runSession({
       if (from && from.toLowerCase() !== username.toLowerCase()) {
         log.info('chat.in', `${from}: ${packet.message}`)
         // Chat kill-switch (#14): inbound chat is untrusted input — including
-        // from a player who is not Roberto — so this matches a narrow literal
+        // from a player who is not the owner — so this matches a narrow literal
         // command only, never something an LLM interprets. finish() is
         // idempotent, so this composes safely with a kick/close arriving
         // around the same time.

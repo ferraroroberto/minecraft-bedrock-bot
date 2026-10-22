@@ -13,7 +13,7 @@ test('the starting state is seeded THROUGH the real reducer, not hand-written', 
     position: { x: 3, y: 64, z: -7 },
     inventory: [{ network_id: 5, count: 2 }],
     blocks: { '1,64,2': 7 },
-    entities: [{ runtimeId: 9, type: 'player', username: 'Roberto39764', position: { x: 4, y: 64, z: -7 } }],
+    entities: [{ runtimeId: 9, type: 'player', username: 'ExamplePlayer1', position: { x: 4, y: 64, z: -7 } }],
   })
   const world = sim.getWorld()
 
@@ -21,7 +21,7 @@ test('the starting state is seeded THROUGH the real reducer, not hand-written', 
   assert.equal(world.self.health, 20)
   assert.equal(getBlockAt(world, 1, 64, 2), 7)
   assert.deepEqual(world.inventory.windows.inventory, [{ network_id: 5, count: 2 }])
-  assert.equal(world.entities.get(9).username, 'Roberto39764')
+  assert.equal(world.entities.get(9).username, 'ExamplePlayer1')
   // Every one of those arrived as an inbound packet, exactly as a live join would.
   assert.ok(sim.inbound.some((entry) => entry.name === 'start_game'))
   assert.ok(sim.inbound.some((entry) => entry.name === 'update_block'))

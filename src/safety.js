@@ -1,6 +1,6 @@
 // The safety envelope (#14): policy primitives applied to every action BELOW
 // the LLM, in code — never "the prompt asks the model to be careful". This is
-// Roberto's real survival base; a hallucinated coordinate must become a
+// the owner's real survival base; a hallucinated coordinate must become a
 // refused action, not a hope that the model behaves.
 //
 // Every function here is a pure predicate or a small stateful primitive
@@ -105,7 +105,7 @@ const STOP_COMMAND = 'bot stop'
 
 /**
  * Chat kill-switch matcher. Inbound chat is untrusted input — including from
- * a player who is not Roberto, and including a message the Layer 3 goal path
+ * a player who is not the owner, and including a message the Layer 3 goal path
  * (src/decision-loop.js, src/prompt.js, src/observation.js,
  * src/model-reply.js, src/goals.js) would otherwise ask an LLM to interpret
  * — so this matches a narrow literal command only, never something an LLM

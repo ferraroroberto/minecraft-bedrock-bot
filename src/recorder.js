@@ -3,7 +3,7 @@
 // Default off (see .env.example RECORD_PACKETS). When enabled, appends one
 // line per packet — inbound and outbound, minus the high-frequency entity
 // churn `DEFAULT_EXCLUDED_PACKETS` drops (see its comment) — so the next time
-// Roberto plays live, that run produces a real fixture corpus for #13 and
+// the owner plays live, that run produces a real fixture corpus for #13 and
 // every layer above it, at no extra cost and with no extra live run requested.
 //
 // Redaction is pattern-based, not a closed list of exact field names — a
@@ -42,7 +42,7 @@ const REDACTED = '[REDACTED]'
 // for the full bytes-per-type breakdown and rationale. Keep this list
 // deliberately NARROW: a filter that quietly drops something a later layer
 // needs is a fixture gap discovered months later, and re-capturing costs a
-// live Realm session Roberto has to run in person. Set
+// live Realm session the owner has to run in person. Set
 // RECORD_PACKETS_EXCLUDE=none to record everything anyway.
 export const DEFAULT_EXCLUDED_PACKETS = Object.freeze([
   'set_entity_data',

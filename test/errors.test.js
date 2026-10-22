@@ -9,13 +9,13 @@ const realmsError = (status, statusText, body = '') =>
 
 test('a 401 is auth, never retried, and names the LOCAL token cache', () => {
   const c = classifyRealmsError(realmsError(401, 'Unauthorized'), {
-    tokenCachePath: '/Users/roberto/minecraft-bedrock-bot/.secrets/xbox-auth/',
+    tokenCachePath: '/Users/example/minecraft-bedrock-bot/.secrets/xbox-auth/',
   })
   assert.equal(c.kind, 'auth')
   assert.equal(c.retryable, false)
   // Token caches are per-host and never synced, so a generic path would send
   // someone to the wrong machine.
-  assert.match(c.message, /\/Users\/roberto\/.*\.secrets\/xbox-auth\//)
+  assert.match(c.message, /\/Users\/example\/.*\.secrets\/xbox-auth\//)
   assert.match(c.message, /device-code/)
 })
 

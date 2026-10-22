@@ -2,7 +2,7 @@
   "name": "minecraft-bedrock-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "AI-controllable bot client for Roberto's Minecraft Bedrock Realm.",
+  "description": "AI-controllable bot client for the owner's Minecraft Bedrock Realm.",
   "type": "module",
   "main": "src/bot.js",
   "scripts": {

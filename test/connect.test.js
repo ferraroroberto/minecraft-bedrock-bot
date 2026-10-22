@@ -305,7 +305,7 @@ test('another player typing the stop command triggers shutdown (#14 kill-switch)
   const session = runSession(deps)
   await deps.ready
   spawn(client)
-  client.emit('text', { source_name: 'Roberto39764§r', message: 'bot stop' })
+  client.emit('text', { source_name: 'ExamplePlayer1§r', message: 'bot stop' })
   const result = await session
   assert.equal(result.endedBy, 'shutdown')
   assert.equal(result.reason, 'stop command received via chat')
@@ -318,7 +318,7 @@ test('ordinary chat that merely contains "stop" does not trigger the kill-switch
   const session = runSession(deps)
   await deps.ready
   spawn(client)
-  client.emit('text', { source_name: 'Roberto39764§r', message: 'please stop mining that' })
+  client.emit('text', { source_name: 'ExamplePlayer1§r', message: 'please stop mining that' })
   client.emit('close', 'unrelated disconnect')
   const result = await session
   assert.equal(result.endedBy, 'close')

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { stripFormatting } from '../src/formatting.js'
 
 test('strips the §r reset the server appends to chat source names', () => {
-  assert.equal(stripFormatting('Roberto39764§r'), 'Roberto39764')
+  assert.equal(stripFormatting('ExamplePlayer1§r'), 'ExamplePlayer1')
 })
 
 test('leaves an unformatted name untouched', () => {

@@ -295,7 +295,7 @@ test('identity args are injected by the loop and cannot be overridden by the mod
   // entity — reaching below the action vocabulary, which the design forbids.
   const sim = worldWithBlock({ runtimeEntityId: 1 })
   const model = createScriptedModel([
-    reply({ actions: [{ type: 'break_block', x: 1, y: 64, z: 2, face: 1, runtimeEntityId: 999, username: 'Roberto39764' }] }),
+    reply({ actions: [{ type: 'break_block', x: 1, y: 64, z: 2, face: 1, runtimeEntityId: 999, username: 'ExamplePlayer1' }] }),
   ])
 
   await runGoal({
@@ -314,7 +314,7 @@ test('identity args are injected by the loop and cannot be overridden by the mod
 test('chat identity comes from config, never from the model', async () => {
   const sim = worldWithBlock()
   const goal = defineGoal({ description: 'say hello', predicate: () => false })
-  const model = createScriptedModel([reply({ actions: [{ type: 'chat', message: 'hello', username: 'Roberto39764', xuid: 'spoofed' }] })])
+  const model = createScriptedModel([reply({ actions: [{ type: 'chat', message: 'hello', username: 'ExamplePlayer1', xuid: 'spoofed' }] })])
 
   await runGoal({
     goal,

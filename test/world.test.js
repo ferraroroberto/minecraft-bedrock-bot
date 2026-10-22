@@ -87,10 +87,10 @@ test('#23: add_entity, add_player, move_entity, and move_entity_delta accept big
   state = reduce(state, 'add_player', {
     runtime_id: 5n,
     unique_id: 500n,
-    username: 'Roberto39764',
+    username: 'ExamplePlayer1',
     position: { x: 0, y: 70, z: 0 },
   })
-  assert.equal(state.entities.get(5n).username, 'Roberto39764')
+  assert.equal(state.entities.get(5n).username, 'ExamplePlayer1')
 
   state = reduce(state, 'move_entity_delta', {
     runtime_entity_id: 5n,
@@ -143,7 +143,7 @@ test('move_entity_delta applies only the flagged axes, leaving the rest untouche
   state = reduce(state, 'add_player', {
     runtime_id: 5,
     unique_id: 500,
-    username: 'Roberto39764',
+    username: 'ExamplePlayer1',
     position: { x: 0, y: 70, z: 0 },
   })
   state = reduce(state, 'move_entity_delta', {

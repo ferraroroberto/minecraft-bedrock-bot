@@ -76,7 +76,7 @@ test('redacts a broader set of secret-shaped fields than the three the deny-list
   recorder.recordInbound('player_list', {
     records: [
       {
-        username: 'Roberto39764',
+        username: 'ExamplePlayer1',
         xbox_user_id: 'SECRET_XBOX_USER_ID_VALUE',
         xuid: 'SECRET_XUID_VALUE',
       },
@@ -112,7 +112,7 @@ test('redacts a broader set of secret-shaped fields than the three the deny-list
     // Not over-redacting: ordinary gameplay fields must still be readable.
     assert.ok(raw.includes('"x":1'))
     assert.ok(raw.includes('"health":18'))
-    assert.ok(raw.includes('Roberto39764'))
+    assert.ok(raw.includes('ExamplePlayer1'))
   })
 })
 
