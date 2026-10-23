@@ -1,4 +1,4 @@
-// Manual hub-integration check (#15) — `npm run hub-check`.
+// Manual hub-integration check — `npm run hub-check`.
 //
 // DELIBERATELY NOT PART OF `npm run verify`. The gate is offline and hermetic:
 // it must pass on a machine with no hub running, so nothing in test/ may make a

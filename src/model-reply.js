@@ -1,12 +1,12 @@
-// Parsing and validating what the model said (#15, Layer 3).
+// Parsing and validating what the model said.
 //
 // MODEL OUTPUT IS UNTRUSTED INPUT — the same posture src/safety.js takes for
 // inbound chat, for the same reason: it arrives from outside and something
 // downstream acts on it. Nothing here trusts the model to have followed
 // instructions.
 //
-// Two behaviours were measured against the hub before this was written
-// (#12's probe, restated in #15) and both are designed for rather than
+// Two behaviours were measured directly against the hub before this was
+// written, and both are designed for rather than
 // assumed away:
 //
 //   - Native tool-calling does NOT work for `claude-*` through the hub: a

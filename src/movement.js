@@ -1,5 +1,5 @@
-// Movement (#17). See README → "Movement" for why player_auth_input is
-// shaped differently from every other action in #14's vocabulary (a
+// Movement. See README → "Movement" for why player_auth_input is
+// shaped differently from every other action in the fixed action vocabulary (a
 // continuous per-tick packet, not a one-shot command) and why silence is the
 // protocol's own success signal here.
 //
@@ -85,7 +85,7 @@ export function rotationTowards(from, target) {
  * Yaw is periodic and the server is free to report the SAME direction on the
  * other side of the discontinuity — a requested `-179` coming back corrected
  * as `181` is a 2° disagreement, not a 360° one. A raw subtraction reads it as
- * ~360 and fails a look_at that actually landed (#34).
+ * ~360 and fails a look_at that actually landed.
  */
 export function angleDiffDegrees(a, b) {
   const wrapped = ((((a - b + 180) % 360) + 360) % 360) - 180
@@ -106,7 +106,7 @@ function sameVec3(a, b, tolerance) {
 
 /**
  * Drive the per-tick player_auth_input loop for move_to/look_at, from the
- * FIRST tick to a final, world-state-verified result. This is where #14's
+ * FIRST tick to a final, world-state-verified result. This is where the performAction gate's
  * "never treat a written packet as success" rule meets a protocol that is
  * DESIGNED around client-asserted position — see this file's header. The
  * loop's own optimistic tick becomes the reported position (applySelfMove);

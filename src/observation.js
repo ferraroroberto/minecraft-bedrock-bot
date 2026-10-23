@@ -1,4 +1,4 @@
-// The observation (#15, Layer 3): the bounded, JSON-serialisable view of the
+// The observation: the bounded, JSON-serialisable view of the
 // world that the model is allowed to see.
 //
 // Pure — world state in, plain object out. Two properties matter and both are
@@ -55,8 +55,7 @@ function distanceOrNull(from, to) {
  * `JSON.stringify` — same rule `describeEntities` applies to `runtimeId`
  * below, needed here because `decision-loop.js`'s INJECTED_ARGS can inject a
  * `BigInt` runtime id (`world.self.runtimeEntityId`, a varint64) into an
- * action's args, and `recentOutcomes` echoes those args verbatim (#53, same
- * defect class as #23/#34).
+ * action's args, and `recentOutcomes` echoes those args verbatim.
  */
 function stringifyBigInts(value) {
   if (typeof value === 'bigint') return value.toString()
@@ -88,7 +87,7 @@ function describeEntities(entities, selfPosition, maxEntities) {
       // world.js's entities Map is keyed by whatever the wire decoded
       // (varint64 -> BigInt, see its header) — JSON.stringify throws on a
       // raw BigInt, so this observation, which is JSON.stringify'd straight
-      // into a prompt (src/prompt.js buildUserMessage), must not carry one (#23).
+      // into a prompt (src/prompt.js buildUserMessage), must not carry one.
       runtimeId: typeof runtimeId === 'bigint' ? runtimeId.toString() : runtimeId,
       type: entity.type ?? 'unknown',
       username: entity.username ?? null,
@@ -114,7 +113,7 @@ function describeBlocks(blocks, selfPosition, maxBlocks) {
 }
 
 /**
- * @param {object} world                    a #13 world-state snapshot
+ * @param {object} world                    a world-state snapshot (src/world.js)
  * @param {object} [options]
  * @param {Array<{action:string,args:object,result:object}>} [options.recentOutcomes]  most recent LAST
  * @returns {object} the plain object serialised into the model's prompt
@@ -141,7 +140,7 @@ export function buildObservation(
     },
     inventory: describeInventory(world.inventory),
     entities: describeEntities(world.entities, self.position, maxEntities),
-    // "blocks we have observed an update_block for" — NOT the terrain. #13
+    // "blocks we have observed an update_block for" — NOT the terrain. The world model
     // deliberately does not decode the chunk palette, so an empty list means
     // "nothing observed yet", never "there is nothing there". Said plainly in
     // the system prompt too, because the difference matters to a planner.

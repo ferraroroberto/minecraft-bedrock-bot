@@ -1,4 +1,4 @@
-// The performAction gate (#14): the ONE path from a named action to a
+// The performAction gate: the ONE path from a named action to a
 // written packet, below the LLM, in code. Order is deliberate and applies to
 // every action the same way:
 //
@@ -8,7 +8,7 @@
 //                             are refused with zero packets written
 //   3. region check          — spatial actions only; refused and logged,
 //                             never silently clamped (src/safety.js)
-//   4. precondition check    — against #13's world model (target exists, is
+//   4. precondition check    — against the world model (target exists, is
 //                             in reach, the slot holds an item, ...)
 //   5. dry-run branch        — default: report what WOULD be written, write
 //                             nothing, unless config.armed is explicitly true
@@ -52,7 +52,7 @@ const ACTIONS = {
     spatial: false,
     build: (args) => [buildChatPacket({ message: args.message, username: args.username, xuid: args.xuid })],
     precondition: () => ({ ok: true }),
-    // Bedrock gives no delivery ack for chat, and #13's world model
+    // Bedrock gives no delivery ack for chat, and the world model
     // deliberately does not track chat history (nothing to verify against).
     // This is the one documented exception to "verify from world state, not
     // from the packet being written" — a written chat packet is reported
@@ -122,13 +122,13 @@ const ACTIONS = {
       return { ok: true }
     },
     // use_item's real-world effect (durability, hunger, a consumed stack, ...)
-    // is not uniformly observable in #13's world model the way a block
+    // is not uniformly observable in the world model the way a block
     // change is — there is no single field guaranteed to move. Rather than
-    // fabricate a heuristic, this watches the two signals #13 does track that
+    // fabricate a heuristic, this watches the two signals the world model does track that
     // "using an item" could plausibly touch (the held slot's item, and self
     // health/hunger), and reports UNVERIFIED — not success — when neither
     // changes within the timeout. A use_item with no observable effect on
-    // this world model legitimately reports failure, per #14's own rule.
+    // this world model legitimately reports failure, per this gate's own rule.
     verify: async (args, { waitForWorld, timeoutMs, worldBefore }) => {
       const beforeItem = JSON.stringify(heldItemAt(worldBefore, args.hotbarSlot))
       const beforeHealth = worldBefore.self.health
@@ -143,7 +143,7 @@ const ACTIONS = {
     },
   },
 
-  // move_to/look_at (#17) are STREAMING actions — a per-tick player_auth_input
+  // move_to/look_at are STREAMING actions — a per-tick player_auth_input
   // loop, not a fixed packet list — so they carry `stream: true` and skip the
   // one-shot build/verify shape entirely; performAction() branches on it
   // below. `validate` plays build()'s arg-checking role since there is no
@@ -183,15 +183,15 @@ export const ACTION_NAMES = Object.freeze(Object.keys(ACTIONS))
 /**
  * @param {object} deps
  * @param {(name: string, params: object) => void} deps.client            client.write-shaped — only ever called when config.armed
- * @param {() => object} deps.getWorld                                     current #13 world state snapshot
+ * @param {() => object} deps.getWorld                                     current world state snapshot (src/world.js)
  * @param {(predicate: (world: object) => boolean, timeoutMs: number) => Promise<object|null>} deps.waitForWorld
  *   resolves with the first world state matching predicate, or null on timeout. Owned by the caller (real wiring: subscribe
  *   to world updates in connect.js; tests: a controllable fake) — this module has no opinion on HOW world state is observed.
- * @param {(world: object) => void} [deps.setWorld]  #17: required only for move_to/look_at — applies the mover's own optimistic
+ * @param {(world: object) => void} [deps.setWorld]  required only for move_to/look_at — applies the mover's own optimistic
  *   self-move (src/world.js applySelfMove) each tick, and is where a real correct_player_move_prediction lands via the SAME
  *   shared state in real wiring. No default: a caller that never uses move_to/look_at never needs it; one that does and
  *   forgets to wire it fails loudly on the first tick rather than silently mis-tracking position.
- * @param {(ms: number) => Promise<void>} [deps.sleep]  #17: the per-tick pacer for move_to/look_at. Defaults to a real setTimeout-based sleep.
+ * @param {(ms: number) => Promise<void>} [deps.sleep]  the per-tick pacer for move_to/look_at. Defaults to a real setTimeout-based sleep.
  * @param {object} deps.config
  * @param {boolean} [deps.config.armed]             default false = dry-run
  * @param {{min:{x,y,z}, max:{x,y,z}}} [deps.config.region]
@@ -199,8 +199,8 @@ export const ACTION_NAMES = Object.freeze(Object.keys(ACTIONS))
  * @param {number} [deps.config.maxReach]
  * @param {number} [deps.config.outcomeTimeoutMs]
  * @param {{maxActions:number, windowMs:number}} [deps.config.rateLimit]
- * @param {number} [deps.config.tickIntervalMs]     #17: player_auth_input send cadence, default 50ms/20Hz (unverified — see src/movement.js)
- * @param {number} [deps.config.moveSpeedPerTick]   #17: naive step size per tick, default ~walking speed (see src/movement.js)
+ * @param {number} [deps.config.tickIntervalMs]     player_auth_input send cadence, default 50ms/20Hz (unverified — see src/movement.js)
+ * @param {number} [deps.config.moveSpeedPerTick]   naive step size per tick, default ~walking speed (see src/movement.js)
  * @param {{record: (entry: object) => void}} [deps.audit]
  * @param {{info?, warn?, error?}} [deps.log]
  * @param {() => number} [deps.now]
@@ -241,7 +241,7 @@ export function createActionRunner({
 
     const worldBefore = getWorld()
 
-    // Shared gate sequence (#14 steps 3-4): region check (spatial actions
+    // Shared gate sequence (steps 3-4 above): region check (spatial actions
     // only), then precondition, against `worldBefore`. Both the streaming
     // branch (move_to/look_at) and the one-shot branch run exactly this
     // sequence before their dry-run/write split — hoisted once so a new

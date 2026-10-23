@@ -1,6 +1,6 @@
 // Breadcrumbs for the pre-spawn NetherNet handshake.
 //
-// Why this exists (#47): see README → "Handshake breadcrumbs" — a failed
+// Why this exists: see README → "Handshake breadcrumbs" — a failed
 // connect used to collapse at least six materially different failures into
 // one unhelpful log line, leaving a real outage undiagnosable from the log.
 //
@@ -49,7 +49,7 @@ export const CONNECT_STAGES = Object.freeze([
  * transcribed from the `ErrorCode` constants in df-mc/go-nethernet's
  * `signal.go`, the most complete public implementation of this protocol.
  *
- * This is here because the raw wire value is unreadable — #47's root cause
+ * This is here because the raw wire value is unreadable — a past root cause
  * arrived as the bare string `37`, and turning that into a name took a
  * source dive that nobody should have to repeat at 2am.
  */

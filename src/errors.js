@@ -2,7 +2,7 @@
 //
 // `prismarine-realms` throws a plain `Error` whose message is
 // `"<status> <statusText> <body>"` and which carries **no `.status` property**
-// (measured, issue #7). So classification means parsing that string at one
+// (measured directly). So classification means parsing that string at one
 // chokepoint rather than sprinkling try/catch around call sites.
 //
 // It also already owns a retry layer, but a narrow one: `execRequest` retries

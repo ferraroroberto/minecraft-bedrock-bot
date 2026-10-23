@@ -21,7 +21,7 @@ const { RealmAPI } = realmsPkg
 const { createClient } = bedrockx
 
 const projectRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-// BOT_SECRETS_DIR exists purely so #11's exit-code regression test can spawn
+// Test-only: BOT_SECRETS_DIR lets an offline exit-code regression test spawn
 // a REAL `node scripts/connect-spike.js` child process and drive it into the
 // lock-held path without touching this project's real .secrets/bot.lock —
 // unset in every normal run.
@@ -94,7 +94,7 @@ export async function main() {
   const faultGuard = createFaultGuard({ log })
   const backoff = createBackoff()
   // One watcher for the whole process, not per-session: it exists to compare an
-  // attempt with the one before it (#42).
+  // attempt with the one before it.
   const regionWatcher = createRegionWatcher()
 
   // Opt-in packet trace (see .env.example RECORD_PACKETS), default off. One
@@ -111,7 +111,7 @@ export async function main() {
   if (recorder) {
     // The exclude set is logged, not just applied: a trace opened months from
     // now is only trustworthy as a fixture corpus if what it omits is on the
-    // record (#41).
+    // record.
     const dropped = recorder.excluded.length ? recorder.excluded.join(', ') : 'nothing'
     log.info('recorder', `recording packets to ${recordPath} (excluding: ${dropped})`)
   }
@@ -149,7 +149,7 @@ export async function main() {
     lock.release()
     log.info('lock', 'released')
     await recorder?.close()
-    // #11 breadcrumb: everything WE own is torn down at this point. Anything
+    // Breadcrumb: everything WE own is torn down at this point. Anything
     // still listed here is third-party async cleanup outside our control
     // (see scripts/connect-spike.js, which force-exits right after this
     // resolves rather than wait on it) — logged only when non-empty so the

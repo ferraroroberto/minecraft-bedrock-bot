@@ -1,4 +1,4 @@
-// Block runtime ids and item network ids, READ OFF A REAL SESSION (#45).
+// Block runtime ids and item network ids, READ OFF A REAL SESSION.
 //
 // See README → "Wheat farming: measured block and item ids" for why these
 // cannot be derived (hashed block ids, no palette decode in src/world.js) and

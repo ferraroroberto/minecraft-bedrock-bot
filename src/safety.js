@@ -1,4 +1,4 @@
-// The safety envelope (#14): policy primitives applied to every action BELOW
+// The safety envelope: policy primitives applied to every action BELOW
 // the LLM, in code — never "the prompt asks the model to be careful". This is
 // the owner's real survival base; a hallucinated coordinate must become a
 // refused action, not a hope that the model behaves.
@@ -15,7 +15,7 @@
  * target allowed?") and src/farm.js's goal predicate is the membership test
  * ("is this cell part of the farm?") — both must agree on the same box, so
  * both call this rather than each re-deriving inclusive-bounds comparison
- * independently (#60).
+ * independently.
  * @param {{min:{x,y,z}, max:{x,y,z}}} region
  * @param {{x:number, y:number, z:number}} point
  * @returns {boolean}
@@ -51,9 +51,9 @@ export function checkRegion(region, target) {
 }
 
 /**
- * Block-breaking is deny-by-default (#14): an unconfigured or empty
+ * Block-breaking is deny-by-default: an unconfigured or empty
  * whitelist allows nothing. The whitelist is keyed on `block_runtime_id`
- * (the raw id #13's world model stores) rather than a block name — #13's
+ * (the raw id the world model stores) rather than a block name — the
  * world model deliberately does not decode the chunk palette
  * (src/world.js's header note), so a name-based whitelist is not available
  * yet without that stretch goal.

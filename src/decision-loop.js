@@ -1,4 +1,4 @@
-// The decision loop (#15, Layer 3) — the actual autonomy test.
+// The decision loop — the actual autonomy test.
 //
 // Natural-language goal → observation → model → validated actions → execution
 // → VERIFICATION FROM WORLD STATE, iterating until the goal's predicate holds,
@@ -18,7 +18,7 @@
 // failure that names exactly that.
 //
 // This module never builds a packet and never touches the client. Every action
-// goes through the injected `performAction` (#14's gate), so the safety
+// goes through the injected `performAction`, so the safety
 // envelope — dry-run by default, bounded region, deny-by-default breaking,
 // rate limiting, audit — applies to an LLM-chosen action exactly as it does to
 // a hand-written one. A refused action is not an error here: it comes back as
@@ -59,7 +59,7 @@ export function resolveActionArgs(action, world, identity) {
  * @param {{description: string, predicate: Function}} deps.goal   from src/goals.js defineGoal
  * @param {{complete: (req: {system: string, messages: object[]}) => Promise<string>}} deps.model
  *   injectable — the loop never imports src/model-client.js, which is what keeps the offline gate offline
- * @param {(name: string, args: object) => Promise<object>} deps.performAction   #14's gate
+ * @param {(name: string, args: object) => Promise<object>} deps.performAction   the performAction gate (src/perform-action.js)
  * @param {() => object} deps.getWorld
  * @param {{username?: string, xuid?: string}} [deps.identity]
  * @param {{region?: object, armed?: boolean}} [deps.config]   descriptive only — the real envelope lives in performAction

@@ -7,8 +7,8 @@
 //
 // Every field name below was read off the pinned BedrockX fork's own
 // protocol.json (node_modules/bedrockx/src/protocol/protocol.json), not
-// assumed from Java-edition docs or bedrock-protocol's upstream — per #13's
-// own warning, this pin has previously disagreed with both. Two results of
+// assumed from Java-edition docs or bedrock-protocol's upstream — this pin
+// has previously disagreed with both. Two results of
 // that check that are NOT what a first guess would produce:
 //
 //   - `remove_entity`'s field is `entity_id_self`, and it is the entity's
@@ -85,7 +85,7 @@ function idsEqual(a, b) {
 // representation this module stored — straight into break_block, so
 // src/actions.js must accept exactly what this predicate accepts. One
 // predicate, both directions; a second hand-rolled guard is how the two halves
-// drift apart (#34).
+// drift apart.
 export function isIdLike(v) {
   return typeof v === 'bigint' || (typeof v === 'number' && Number.isFinite(v))
 }
@@ -98,7 +98,7 @@ function toVec3(v) {
 
 // The `blocks` Map's key encoding is owned here — every other module that
 // needs to build or read one of these keys imports blockKey/parseBlockKey
-// rather than re-deriving the "x,y,z" format by hand (#60). Changing the
+// rather than re-deriving the "x,y,z" format by hand. Changing the
 // encoding (a dimension component, a different separator, packing to a
 // number) then only ever needs to happen in this one place.
 /** @returns {string|null} the "x,y,z" key for a block position, or null if any coordinate is missing/non-finite. */
@@ -147,7 +147,7 @@ function reduceMovePlayer(state, packet) {
 }
 
 function reduceCorrectPlayerMovePrediction(state, packet) {
-  // #17: the server's authoritative override for a player_auth_input the
+  // The server's authoritative override for a player_auth_input the
   // client sent (prediction_type === 'vehicle' is a different actor, not
   // relevant to self). Server truth always wins over whatever we optimistically
   // applied from our own outbound ticks.
@@ -166,7 +166,7 @@ function reduceCorrectPlayerMovePrediction(state, packet) {
 }
 
 /**
- * #17: optimistic self-application of our OWN just-sent player_auth_input —
+ * Optimistic self-application of our OWN just-sent player_auth_input —
  * NOT a real inbound packet, so this is exported as a plain function rather
  * than folded into reduce()'s packet-name dispatch (WORLD_PACKET_NAMES drives
  * real `client.on(name, ...)` wiring in connect.js, and player_auth_input is
@@ -214,7 +214,7 @@ function reduceInventorySlot(state, packet) {
 
 function reduceMobEquipment(state, packet) {
   // Equipment for another entity (a mob, or another player) is out of scope
-  // for this pass — #13 asks for SELF inventory tracking, not nearby entities'.
+  // for this pass — this module tracks SELF inventory only, not nearby entities'.
   if (!idsEqual(packet.runtime_entity_id, state.self.runtimeEntityId)) return state
   if (typeof packet.window_id !== 'string' || !Number.isFinite(packet.slot) || !packet.item) return state
   const items = Array.isArray(state.inventory.windows[packet.window_id])
@@ -328,7 +328,7 @@ export const WORLD_PACKET_NAMES = Object.freeze(Object.keys(HANDLERS))
 /**
  * Fold one packet into the world state. Unknown packet names and malformed
  * packets (missing/wrong-typed fields) are no-ops — this must NEVER throw,
- * since a bad reducer must not be able to drop the connection (#13).
+ * since a bad reducer must not be able to drop the connection.
  *
  * @param {object} state   from createWorldState() or a prior reduce()
  * @param {string} packetName

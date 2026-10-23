@@ -1,9 +1,9 @@
-// Goals (#15, Layer 3): a natural-language description paired with a
+// Goals: a natural-language description paired with a
 // PROGRAMMATIC SUCCESS PREDICATE evaluated against world state.
 //
 // The pairing is the whole point, and it is enforced rather than documented:
 // defineGoal THROWS without a predicate. "A goal with no mechanical predicate
-// is not a valid goal for this loop" (#15) — so it is impossible to construct
+// is not a valid goal for this loop" — so it is impossible to construct
 // one and discover at the end of a run that the only available evidence of
 // success was the model saying so.
 //

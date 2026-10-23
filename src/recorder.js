@@ -3,7 +3,7 @@
 // Default off (see .env.example RECORD_PACKETS). When enabled, appends one
 // line per packet — inbound and outbound, minus the high-frequency entity
 // churn `DEFAULT_EXCLUDED_PACKETS` drops (see its comment) — so the next time
-// the owner plays live, that run produces a real fixture corpus for #13 and
+// the owner plays live, that run produces a real fixture corpus for the world model and
 // every layer above it, at no extra cost and with no extra live run requested.
 //
 // Redaction is pattern-based, not a closed list of exact field names — a
@@ -32,7 +32,7 @@ const SENSITIVE_KEY_PATTERN = /token|xuid|xbox|address|session[_-]?id|invite|sec
 // recorded trace, so the trace could never serve as the inventory fixture
 // corpus this recorder exists to produce — src/observation.js's
 // describeInventory and src/goals.js's itemCountAtLeast both key off exactly
-// that field (#34). Hence a case-SENSITIVE pattern for the NetherNet sense
+// that field. Hence a case-SENSITIVE pattern for the NetherNet sense
 // only; `network_id`/`network-id` deliberately fall through unredacted.
 const SENSITIVE_CAMEL_KEY_PATTERN = /[Nn]etworkId/
 const REDACTED = '[REDACTED]'
@@ -79,7 +79,7 @@ function redact(value) {
   // varint64/zigzag64/li64 fields decode to `BigInt` (src/world.js's header),
   // which most of a Bedrock packet's ids are — and `JSON.stringify` throws
   // `TypeError: Do not know how to serialize a BigInt`. Stringify it here so
-  // the trace still writes instead of silently failing (#23).
+  // the trace still writes instead of silently failing.
   if (typeof value === 'bigint') return value.toString()
   if (Array.isArray(value)) return value.map(redact)
   if (value && typeof value === 'object') {
