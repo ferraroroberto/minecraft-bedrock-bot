@@ -1,6 +1,6 @@
 // Noticing that the Realm moved between connect attempts.
 //
-// #42: the resolve before a kick reported region=NorthEurope; every attempt
+// Once, the resolve before a kick reported region=NorthEurope; every attempt
 // after it resolved to region=UAENorth and every one of those timed out without
 // ever reaching spawn. The region was logged each time — but logging the same
 // field repeatedly is not the same as noticing it changed, so three ~60s

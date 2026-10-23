@@ -1,20 +1,20 @@
-// The fake world (#15, Layer 3). See README → "The fake world" for why this
+// The fake world. See README → "The fake world" for why this
 // exists (the primary test surface for the decision loop, verified with no
 // Realm/network/account) and what it can/cannot prove.
 //
 // It presents the same surface the real client does — `client.write(name,
-// params)` — interprets the outbound packets #14's vocabulary produces,
+// params)` — interprets the outbound packets the action vocabulary produces,
 // mutates its own state, and then EMITS SYNTHESIZED INBOUND PACKETS THROUGH
 // THE REAL REDUCER (src/world.js `reduce`), including the seeded initial
 // state. That is deliberate — see README for why it matters.
 //
 // One assumption is worth naming precisely here, because it is a real open
-// question rather than a simplification: PLACE. #14's own outcome
+// question rather than a simplification: PLACE. place_block's own outcome
 // verification watches the CLICKED coordinate (src/perform-action.js
 // place_block's verify reads args.x/y/z), so this world sets the new block
 // there. A real Bedrock server may instead place it on the adjacent face.
 // Only a live run can settle that, and if it turns out to be the adjacent
-// block then #14's verify and this world are wrong TOGETHER — which is
+// block then that verification and this world are wrong TOGETHER — which is
 // exactly the failure mode a self-consistent simulator cannot catch.
 import { createWorldState, reduce, getBlockAt, parseBlockKey } from './world.js'
 
@@ -36,7 +36,7 @@ function blockKeyOf(position) {
  * @param {object[]} [options.entities]                        [{ runtimeId, uniqueId, type, username, position }]
  * @param {(heldItem: object) => number} [options.placedRuntimeIdFor]
  * @param {(api: object, transactionData: object) => void} [options.useItemEffect]
- *   default: NOTHING happens. Matches reality closely enough to matter — #14 documents that use_item's effect is not
+ *   default: NOTHING happens. Matches reality closely enough to matter — the performAction gate documents that use_item's effect is not
  *   uniformly observable, so the default makes use_item correctly report unverified rather than flattering the loop.
  * @param {(input: {tick: number, position: object}) => object|null} [options.correctionFor]
  *   return a position to make the server disagree with an outbound player_auth_input (correct_player_move_prediction)
@@ -96,7 +96,7 @@ export function createFakeWorld({
   const api = { emit, setInventorySlot, getWorld: () => world }
 
   const OUTBOUND = {
-    // Chat has no delivery acknowledgement on Bedrock — #14 documents this as
+    // Chat has no delivery acknowledgement on Bedrock — the performAction gate documents this as
     // the one action reported sent rather than verified. Recording the write
     // and changing nothing is the faithful behaviour, not a gap.
     text: () => {},
@@ -108,7 +108,7 @@ export function createFakeWorld({
     player_action: (params) => {
       if (params.action !== 'stop_break') return // start_break alone changes nothing
       applyEffect(() => {
-        // A block never observed is not made to exist here — #14's own
+        // A block never observed is not made to exist here — the performAction gate's own
         // precondition refuses that case before it reaches the wire.
         if (getBlockAt(world, params.position.x, params.position.y, params.position.z) === null) return
         emit('update_block', { position: params.position, block_runtime_id: airRuntimeId })
@@ -130,7 +130,7 @@ export function createFakeWorld({
       }
     },
 
-    // The server only answers a player_auth_input when it DISAGREES (#17).
+    // The server only answers a player_auth_input when it DISAGREES.
     // Silence is the success signal, so the default is to stay silent.
     player_auth_input: (params) => {
       if (!correctionFor) return
@@ -175,7 +175,7 @@ export function createFakeWorld({
   }
 
   return {
-    /** The client surface #14's gate writes to. */
+    /** The client surface the performAction gate writes to. */
     client: {
       write(name, params) {
         written.push({ name, params })
@@ -189,7 +189,7 @@ export function createFakeWorld({
     },
 
     /**
-     * #14's outcome poll. This world only ever changes SYNCHRONOUSLY inside
+     * The performAction gate's outcome poll. This world only ever changes SYNCHRONOUSLY inside
      * client.write, so a predicate that is false here can never become true
      * later — returning null immediately is the honest equivalent of "the
      * timeout expired", and it keeps the whole suite free of timers and

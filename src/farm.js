@@ -1,13 +1,13 @@
-// Harvest-and-replant as a goal predicate over world state (#45).
+// Harvest-and-replant as a goal predicate over world state.
 //
-// This is the domain layer: it composes #13's world model, #14's safety
-// envelope and #15's goal contract with the wheat ids measured in
+// This is the domain layer: it composes the world model, the safety
+// envelope and the goal contract (src/goals.js) with the wheat ids measured in
 // src/blocks.js. It builds no packets and takes no actions — the loop chooses
 // actions, performAction gates them, and this module only ever ANSWERS
 // "is the farm in the desired state?" from observed blocks.
 //
 // THE PREDICATE IS THE POINT, so it is worth being precise about what it can
-// honestly assert. #13's world model knows a block only if it watched that
+// honestly assert. The world model knows a block only if it watched that
 // block CHANGE (src/world.js maps `update_block`; the chunk payload is never
 // decoded). So the strongest true statement available is not "the farm is
 // clear" — nothing in this codebase can see the whole farm — but:
@@ -17,13 +17,13 @@
 //
 // Saying that plainly matters more than it might look. A predicate that
 // claimed to describe the entire farm would be lying about its own evidence,
-// and the one thing #15 exists to prevent is a success claim that outruns what
+// and the one thing the goal contract exists to prevent is a success claim that outruns what
 // was actually verified.
 //
 // The same limitation is why this goal cannot yet clear a farm that was
 // already standing when the bot joined: with nothing observed, there is
-// nothing to harvest and nothing to assert. Chunk decoding (#49) is what turns
-// this predicate from "the cells I watched" into "the farm".
+// nothing to harvest and nothing to assert. This is accepted: lifting it would
+// need chunk palette decoding, which this predicate does not attempt.
 //
 // THE VACUOUS-TRUTH TRAP. "No observed cell is mature wheat" is trivially TRUE
 // when nothing has been observed at all — and src/decision-loop.js evaluates
@@ -70,7 +70,7 @@ export function regionFromCorners(a, b) {
  * coordinate-at-a-time lookup cannot answer without knowing the coordinates in
  * advance — and not knowing them is the entire situation.
  *
- * @param {object} world  a #13 world-state snapshot
+ * @param {object} world  a world-state snapshot (src/world.js)
  * @param {{min:object, max:object}} region
  */
 export function observedCellsIn(world, region) {
@@ -122,7 +122,7 @@ export function harvestAndReplantGoal({ region, minObservedCells = 1, descriptio
   }
   const { min, max } = region
   // Routed through defineGoal rather than returned as a bare object: that is
-  // where #15 ENFORCES the description+predicate pairing (it throws without a
+  // where defineGoal ENFORCES the description+predicate pairing (it throws without a
   // predicate) and freezes the result. Constructing the same shape by hand
   // here would quietly opt this goal out of the one check that makes a goal a
   // goal.

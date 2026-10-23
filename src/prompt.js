@@ -1,10 +1,10 @@
-// The prompts (#15, Layer 3). Pure string building — no client, no state.
+// The prompts. Pure string building — no client, no state.
 //
 // The system prompt is load-bearing for a reason measured on the hub, not a
 // stylistic one: without an explicit `system`, a `claude-*` request through
 // the hub comes back in Claude Code's OWN persona (offering to "enter a
 // worktree", ~25k cached input tokens of a foreign system prompt). With one,
-// the same request returns clean structured output. See #12's probe.
+// the same request returns clean structured output.
 //
 // Everything this prompt says about safety is DESCRIPTIVE. The envelope is
 // enforced in code, below the model, by src/safety.js and

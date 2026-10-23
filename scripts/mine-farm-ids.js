@@ -1,4 +1,4 @@
-// Mine block/item ids out of a recorded JSONL trace (#45).
+// Mine block/item ids out of a recorded JSONL trace.
 //
 // `npm run mine-farm-ids .secrets/trace-farm.jsonl`
 //
@@ -37,7 +37,7 @@ function flag(name, fallback) {
   return index >= 0 && args[index + 1] && !args[index + 1].startsWith('--') ? args[index + 1] : fallback
 }
 
-// Default to the crop vocabulary #45 needs. Deliberately broader than wheat
+// Default to the crop vocabulary wheat-farming needs. Deliberately broader than wheat
 // alone (hoe, bone_meal, farmland) so one capture answers the neighbouring
 // questions too rather than costing a second live session to re-mine.
 const itemPattern = new RegExp(flag('items', 'wheat|seed|farmland|hoe|bone_meal'), 'i')

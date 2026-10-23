@@ -2,8 +2,8 @@
 //
 // `npm run trace-stats .secrets/trace.jsonl`
 //
-// This is the analysis that chose src/recorder.js's DEFAULT_EXCLUDED_PACKETS
-// (#41), and the one to re-run after a capture with the filter active to
+// This is the analysis that chose src/recorder.js's DEFAULT_EXCLUDED_PACKETS,
+// and the one to re-run after a capture with the filter active to
 // confirm the signal packets — update_block, level_chunk, add_entity,
 // inventory_content — all still appear. Bytes, not just counts: count is not
 // volume. `level_chunk` was 937 packets and 17.5 MB in the first capture,

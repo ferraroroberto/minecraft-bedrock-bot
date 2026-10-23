@@ -1,6 +1,6 @@
 // Naming the reason a session was kicked.
 //
-// #42: a stable 3m10s session ended with `kicked — 140` and nothing else in the
+// A stable 3m10s session once ended with `kicked — 140` and nothing else in the
 // log. A bare integer is not diagnosable after the fact, and a kick is exactly
 // the class of failure that only ever happens live.
 //
@@ -13,7 +13,7 @@
 // Unlike allPacketNames(), nothing here ever throws: this runs inside the kick
 // handler, where a throw would cost the very session we are trying to explain.
 // A protocol shape change degrades to logging the bare code — which is exactly
-// the pre-#42 behaviour — and test/disconnect-reasons.test.js fails the gate so
+// the previous behaviour — and test/disconnect-reasons.test.js fails the gate so
 // the degradation is never discovered live.
 import { createRequire } from 'node:module'
 

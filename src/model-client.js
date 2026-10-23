@@ -1,4 +1,4 @@
-// The hub adapter (#15, Layer 3) — the ONLY module in this repo that knows a
+// The hub adapter — the ONLY module in this repo that knows a
 // model is reached over HTTP.
 //
 // Routed through the fleet's local LLM hub with the standard Anthropic SDK, per
@@ -7,7 +7,7 @@
 // wrapper downstream is explicitly rejected. Nothing here re-derives that
 // plumbing; it points the SDK at the hub's base URL and gets out of the way.
 //
-// TWO DELIBERATE OMISSIONS, both measured (#12's probe, restated in #15):
+// TWO DELIBERATE OMISSIONS, both measured directly against the hub:
 //
 //   - NO `tools` ARRAY. Native tool-calling does not work for `claude-*`
 //     through the hub: the array is accepted, silently ignored, and the reply

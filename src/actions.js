@@ -1,4 +1,4 @@
-// The fixed action vocabulary (#14): named, schema-validated actions that
+// The fixed action vocabulary: named, schema-validated actions that
 // translate into packets — never raw packets exposed upward to a caller.
 // Every function here is pure protocol translation: validate input, build the
 // wire packet(s). No client, no I/O, no world mutation, no policy decisions —
@@ -7,12 +7,12 @@
 //
 // Packet field names were read off the pinned BedrockX fork's own
 // protocol.json (node_modules/bedrockx/src/protocol/protocol.json), the same
-// discipline #13's world.js established for reading packets — applied here to
-// writing them. Two things worth flagging explicitly, per #14's own
+// discipline world.js established for reading packets — applied here to
+// writing them. Two things worth flagging explicitly, per this module's own
 // instruction to say so plainly rather than imply the actions are proven:
 //
 //   - `held_item` for place_block/use_item is meant to be the caller's ALREADY
-//     -DECODED item object from #13's world model (world.inventory.windows.
+//     -DECODED item object from the world model (world.inventory.windows.
 //     inventory[hotbarSlot]), echoed back as-is. Bedrock's `Item` type has a
 //     deep "default" branch (count/metadata/stack_id/block_runtime_id/extra
 //     NBT) once network_id !== 0 that this module makes no attempt to
@@ -31,7 +31,7 @@
 // can prove that.
 
 // The one import here, and deliberately a pure predicate rather than any world
-// state: #13's world model is where `runtimeEntityId` comes from (the decision
+// state: the world model is where `runtimeEntityId` comes from (the decision
 // loop injects `world.self.runtimeEntityId` verbatim), so the guard below has
 // to accept exactly the representations that model stores — `BigInt` included.
 import { isIdLike } from './world.js'
@@ -93,7 +93,7 @@ export function buildSelectSlotPacket({ slot }) {
 }
 
 /**
- * player_action start_break/stop_break sequence — #14 scopes break_block down
+ * player_action start_break/stop_break sequence — break_block is scoped down
  * to exactly this, not the full inventory_transaction dance place_block/
  * use_item need.
  * @returns {Array<{name: string, params: object}>}
@@ -102,7 +102,7 @@ export function buildBreakBlockPackets({ runtimeEntityId, x, y, z, face }) {
   // NOT `Number.isInteger`: `runtime_entity_id` is a varint64 and decodes to a
   // `BigInt` on a real session (`Number.isInteger(7n) === false`), so the old
   // guard would have refused EVERY live break_block — with a message blaming a
-  // missing argument rather than its type (#34, same defect class as #23).
+  // missing argument rather than its type.
   must('break_block', isIdLike(runtimeEntityId), 'runtimeEntityId is required (a number or BigInt entity id)')
   must('break_block', isIntBlockCoords(x, y, z), 'x, y, z must be integer block coordinates')
   must('break_block', Number.isInteger(face) && face >= 0 && face <= 5, 'face must be an integer 0-5 (BlockFace)')

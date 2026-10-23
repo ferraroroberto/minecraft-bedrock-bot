@@ -3,7 +3,7 @@
 // The load-bearing number here is measured, not chosen: after the bot process
 // dies the server holds the old Xbox session for a while — a reconnect **8s
 // later was still kicked with `server_id_conflict`; 30s reconnected cleanly**
-// (issue #1). So `server_id_conflict` is its own condition with its own,
+// — so `server_id_conflict` is its own condition with its own,
 // longer ladder, not a generic failure.
 
 /** Delay ladders in ms, indexed by condition. Attempts past the end reuse the last rung. */

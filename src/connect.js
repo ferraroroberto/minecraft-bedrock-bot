@@ -94,7 +94,7 @@ export function buildClientOptions({ join, transport, authflow, username, profil
     transport,
   }
   if (transport === 'DEFAULT') {
-    // Legacy RakNet. Note the macOS raknet patch (#5) means this path is
+    // Legacy RakNet. Note the macOS raknet patch means this path is
     // unsupported on Darwin — fine until such a Realm actually appears.
     const [host, port] = String(join.address).split(':')
     return { ...options, host, port: Number(port) }
@@ -128,9 +128,9 @@ export async function runSession({
   now = () => Date.now(),
   recorder = null,
   // Created once per process (src/bot.js) so one attempt can be compared with
-  // the previous one; null in the tests that do not care (#42).
+  // the previous one; null in the tests that do not care.
   regionWatcher = null,
-  // Always on, not opt-in: the whole point (#47) is that the NEXT unattended
+  // Always on, not opt-in: the whole point is that the NEXT unattended
   // failure is diagnosable from the log without anyone having enabled anything
   // first. Injectable only so tests can drive it.
   probe = createConnectProbe({ log }),
@@ -139,7 +139,7 @@ export async function runSession({
   const region = join.sessionRegionData?.regionName ?? null
   log.info('realm.resolved', `"${realm.name}" transport=${transport} region=${region ?? 'unknown'}`)
 
-  // A region flip correlated with total connect failure in #42, and nothing in
+  // A region flip has come before total connect failure, and nothing in
   // the log said it had happened. Its own line, at warn, because the previous
   // attempt's region is gone from the reader's eye by the time it matters.
   const regionChange = regionWatcher?.note(region)
@@ -248,7 +248,7 @@ export async function runSession({
     connectTimer = setTimeout(() => {
       if (connectedAt === null) {
         // Never a bare "no spawn within Nms" — that one message covered six
-        // different failures and made #47 undiagnosable. describe() names the
+        // different failures and made the timeout undiagnosable. describe() names the
         // furthest stage the handshake reached and what stopping there implies.
         finish('connect_timeout', `no spawn within ${connectTimeoutMs}ms — ${probe?.describe() ?? 'no probe attached'}`)
       }
@@ -291,7 +291,7 @@ export async function runSession({
       const from = stripFormatting(packet.source_name)
       if (from && from.toLowerCase() !== username.toLowerCase()) {
         log.info('chat.in', `${from}: ${packet.message}`)
-        // Chat kill-switch (#14): inbound chat is untrusted input — including
+        // Chat kill-switch: inbound chat is untrusted input — including
         // from a player who is not the owner — so this matches a narrow literal
         // command only, never something an LLM interprets. finish() is
         // idempotent, so this composes safely with a kick/close arriving
@@ -309,7 +309,7 @@ export async function runSession({
       const reason = packet?.reason ?? 'unknown'
       libraryClosed = true // close() is about to run inside the library
       // Name AND code: the enum name is what makes the kick diagnosable, the
-      // raw code is what stays comparable with an older log line (#42).
+      // raw code is what stays comparable with an older log line.
       log.warn('kicked', `${describeDisconnectReason(packet?.reason)}${packet?.message ? ` — ${packet.message}` : ''}`)
       finish('kick', reason)
     })
@@ -326,7 +326,7 @@ export async function runSession({
     })
 
     function sendChat(message) {
-      // chat is now part of the fixed action vocabulary (#14) — the packet
+      // chat is now part of the fixed action vocabulary — the packet
       // shape lives in src/actions.js, not duplicated here.
       const { name, params } = buildChatPacket({ message, username, xuid: selfXuid })
       client.write(name, params)
