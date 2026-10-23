@@ -13,3 +13,24 @@ description = "Headless Bedrock Realm bot driven by an LLM decision loop on the 
 # in `description` instead. Revisit only if the fleet-config schema ever grows
 # multi-edge tags; don't silently swap the Realm out for the hub.
 tag         = ["→", "Minecraft Realm"]
+shape       = "node"
+# `patches/` holds the patch-package patch that npm's postinstall applies; the
+# `node` preset has no folder for it (docs/layout.md).
+extra_roots = ["patches"]
+
+# [vendored] -- components copied byte-for-byte from project-scaffolding, with the
+# scaffold commit each came from. Re-vendor through /propagate-vendored, never by hand.
+[vendored]
+structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab416551762e4a615e4a706df91cea69f", dest = "scripts/structure_ratchet.py" }
+
+# [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. `npm run
+# verify` runs scripts/structure_ratchet.py and fails when a new file passes 1,000
+# lines, a function 100 lines or a flat directory 40 modules, when a baselined
+# offender grows past its size in .structure-ratchet-baseline.json, and when the
+# root folders do not match `shape` plus `extra_roots`. Existing offenders are
+# baselined at today's size, never excluded. Exit 3 (git unusable, an unparseable
+# file, an unknown shape) fails the gate. Procedure: project-scaffolding
+# docs/structure-ratchet.md.
+[structure_ratchet]
+enabled  = true
+baseline = ".structure-ratchet-baseline.json"

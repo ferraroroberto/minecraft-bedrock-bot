@@ -52,4 +52,5 @@ One pass/fail gate, fail-fast: `node --check` over every `.js` in `src/` and `sc
 - **Movement** — `move_to`/`look_at` over the continuous `player_auth_input` packet: [docs/movement.md](docs/movement.md).
 - **LLM decision loop**, **The fake world**, hub wiring check — goals with programmatic success predicates, untrusted model output, the in-memory simulator: [docs/decision-loop.md](docs/decision-loop.md).
 - **Wheat farming: measured block and item ids** — measured ids, the harvest-and-replant goal, and the unseen-farm limitation: [docs/wheat-farming.md](docs/wheat-farming.md).
+- **Layout** — where each folder's code goes, the declared `patches/` exception and the structure-ratchet baseline: [docs/layout.md](docs/layout.md).
 - **Blocking prerequisite**, cross-machine setup and the macOS raknet patch: this file and [docs/setup-and-machines.md](docs/setup-and-machines.md).
