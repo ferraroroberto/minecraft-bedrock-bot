@@ -20,7 +20,7 @@ const code = await main()
 // native WebRTC teardown runs asynchronously after that. Measured on this
 // host: leaving those to finish on their own doesn't just hang the event
 // loop (matching a macOS symptom seen before) — it can SEGFAULT ~15s later
-// during the native cleanup (see README's BedrockX gotchas). Waiting for
+// during the native cleanup (see docs/gotchas.md). Waiting for
 // cleanup we can't control and can't safely await is worse than not
 // waiting, so this exits immediately with the real code rather than risk
 // the hang or the crash. `process.exit()` can in principle truncate

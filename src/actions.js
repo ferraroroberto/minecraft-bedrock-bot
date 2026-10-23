@@ -25,7 +25,7 @@
 //     verified value.
 //
 // This repo has already been burned by a packet that serialized perfectly and
-// was still semantically wrong (README → the `category: 'message_only'`
+// was still semantically wrong (docs/gotchas.md → the `category: 'message_only'`
 // gotcha). A passing packet-shape assertion here is NOT evidence the server
 // will accept the action — only a live, explicitly-authorized `npm run spike`
 // can prove that.
@@ -71,7 +71,7 @@ export function buildChatPacket({ message, username, xuid }) {
     params: {
       needs_translation: false,
       // 'message_only' serializes fine but gets the connection dropped ~16s
-      // later (README → gotchas). 'authored' is load-bearing.
+      // later (docs/gotchas.md). 'authored' is load-bearing.
       category: 'authored',
       type: 'chat',
       source_name: username,

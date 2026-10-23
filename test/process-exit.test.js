@@ -7,7 +7,7 @@
 //
 // The third path (a hung/crashing exit after a LIVE, connected session) is
 // not offline-testable — see #11's own "no live Realm connections" carve-out
-// and README's BedrockX gotchas for what was measured live instead.
+// and docs/gotchas.md for what was measured live instead.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'

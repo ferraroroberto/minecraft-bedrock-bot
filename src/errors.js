@@ -100,7 +100,7 @@ export function classifyRealmsError(err, context = {}) {
       message:
         `the Realms API rejected client version ${version} (protocol ${protocol}). ` +
         `Minecraft has updated ahead of our minecraft-data/BedrockX pin. ` +
-        `Update minecraft-data, and re-pin BedrockX if needed (README → "Why BedrockX"). ` +
+        `Update minecraft-data, and re-pin BedrockX if needed (docs/why-bedrockx.md). ` +
         `Retrying will not help until the pin moves.`,
     }
   }

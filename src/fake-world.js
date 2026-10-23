@@ -1,4 +1,4 @@
-// The fake world. See README → "The fake world" for why this
+// The fake world. See docs/decision-loop.md → "The fake world" for why this
 // exists (the primary test surface for the decision loop, verified with no
 // Realm/network/account) and what it can/cannot prove.
 //
@@ -6,7 +6,7 @@
 // params)` — interprets the outbound packets the action vocabulary produces,
 // mutates its own state, and then EMITS SYNTHESIZED INBOUND PACKETS THROUGH
 // THE REAL REDUCER (src/world.js `reduce`), including the seeded initial
-// state. That is deliberate — see README for why it matters.
+// state. That is deliberate — see docs/decision-loop.md for why it matters.
 //
 // One assumption is worth naming precisely here, because it is a real open
 // question rather than a simplification: PLACE. place_block's own outcome
@@ -18,16 +18,12 @@
 // exactly the failure mode a self-consistent simulator cannot catch.
 import { createWorldState, reduce, getBlockAt, parseBlockKey } from './world.js'
 
-/** Runtime id a broken block leaves behind. 0 is used as "air" throughout the tests; the real id is unknown until a live run. */
+/** Runtime id a broken block leaves behind. 0 is a test-only stand-in for "air"; the id measured off a live trace is `AIR` in src/blocks.js. */
 export const DEFAULT_AIR_RUNTIME_ID = 0
 /** Runtime id a placed item becomes when the item carries no block_runtime_id of its own. */
 export const DEFAULT_PLACED_RUNTIME_ID = 1
 
 const AIR_ITEM = Object.freeze({ network_id: 0 })
-
-function blockKeyOf(position) {
-  return `${position.x},${position.y},${position.z}`
-}
 
 /**
  * @param {object} [options]

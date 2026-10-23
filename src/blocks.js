@@ -1,6 +1,6 @@
 // Block runtime ids and item network ids, READ OFF A REAL SESSION.
 //
-// See README → "Wheat farming: measured block and item ids" for why these
+// See docs/wheat-farming.md for why these
 // cannot be derived (hashed block ids, no palette decode in src/world.js) and
 // for the full re-measurement procedure. Re-run `scripts/mine-farm-ids.js`
 // against a fresh capture after any game-version bump.

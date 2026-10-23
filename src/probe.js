@@ -1,6 +1,6 @@
 // Breadcrumbs for the pre-spawn NetherNet handshake.
 //
-// Why this exists: see README → "Handshake breadcrumbs" — a failed
+// Why this exists: see docs/connect-and-supervision.md → "Handshake breadcrumbs" — a failed
 // connect used to collapse at least six materially different failures into
 // one unhelpful log line, leaving a real outage undiagnosable from the log.
 //
@@ -124,7 +124,7 @@ export const STAGE_DIAGNOSIS = Object.freeze({
     'joined, or the signalling message never reached it',
   answered:
     'the host answered but the WebRTC transport never connected — the classic NAT / firewall / blocked-UDP ' +
-    'signature (see README → "Gotchas worth knowing")',
+    'signature (see docs/gotchas.md)',
   transport_connected:
     'the transport connected but the server sent nothing back — the handshake stalled before network_settings',
   receiving_packets:
