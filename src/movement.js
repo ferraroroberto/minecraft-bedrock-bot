@@ -1,4 +1,4 @@
-// Movement. See README → "Movement" for why player_auth_input is
+// Movement. See docs/movement.md for why player_auth_input is
 // shaped differently from every other action in the fixed action vocabulary (a
 // continuous per-tick packet, not a one-shot command) and why silence is the
 // protocol's own success signal here.
@@ -12,7 +12,7 @@
 // alone.
 //
 // Two assumptions this file makes that are NOT verified against a live
-// packet capture — flag as such in any PR touching this file (README has the
+// packet capture — flag as such in any PR touching this file (docs/movement.md has the
 // full reasoning for both):
 //   - Tick cadence: 50ms (20Hz), the standard Minecraft simulation tick rate.
 //   - Walk speed: ~0.2154 blocks/tick (4.317 blocks/s ÷ 20 ticks/s), used

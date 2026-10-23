@@ -2,7 +2,7 @@
 //
 // `npm run mine-farm-ids .secrets/trace-farm.jsonl`
 //
-// See README → "Wheat farming: measured block and item ids" for why these ids
+// See docs/wheat-farming.md for why these ids
 // can't be derived from the protocol definition and for the two-mechanism
 // story (items exact off `item_registry`, blocks mined behaviourally from the
 // growth ladder).
@@ -12,8 +12,8 @@
 // calls it `runtime_id`. Mining only the first would silently miss whichever
 // channel the server happens to use for crops — the very question a live
 // capture is being spent to answer. (This script deliberately reads both;
-// src/world.js's `reduce()` does not — see its header and README → "World
-// state + packet recorder" for that known gap.)
+// src/world.js's `reduce()` does not — see its header and
+// docs/world-state-and-recorder.md for that known gap.)
 //
 // Streams line by line and pulls the packet name with a regex before parsing:
 // these traces run to hundreds of megabytes, and JSON.parse on every line

@@ -36,7 +36,7 @@
 // Empirically confirmed only for the packet types actually observed on the
 // wire so far — live captures on 2026-08-13 decoded `update_block`,
 // `inventory_slot`/`inventory_content`, `mob_equipment`, `item_registry` and
-// the entity packets cleanly (see README → "World state + packet recorder").
+// the entity packets cleanly (see docs/world-state-and-recorder.md).
 // Everything else here is still verified only against the pinned protocol
 // definition and PMMP's independent implementation, not against a real
 // stream — notably `correct_player_move_prediction`'s vec2f ordering, still

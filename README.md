@@ -44,8 +44,6 @@ One pass/fail gate, fail-fast: `node --check` over every `.js` in `src/` and `sc
 
 ## Documentation index
 
-Each section below was a README section; the names are kept because source comments cite them.
-
 - **Why BedrockX and not `bedrock-protocol`** — the library choice, the NetherNet Realm transport, and why BedrockX is pinned by commit: [docs/why-bedrockx.md](docs/why-bedrockx.md). Read before touching the connect path.
 - **Gotchas worth knowing** — protocol and library traps that each cost real debugging time (session conflicts, version gates, identity assertion, `Client.close()`): [docs/gotchas.md](docs/gotchas.md).
 - **Handshake breadcrumbs** — the stage ladder and log lines that name where a connect stopped; supervision and exit codes: [docs/connect-and-supervision.md](docs/connect-and-supervision.md).

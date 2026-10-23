@@ -38,7 +38,7 @@ const SENSITIVE_CAMEL_KEY_PATTERN = /[Nn]etworkId/
 const REDACTED = '[REDACTED]'
 
 // Excluded by DEFAULT — unfiltered the recorder is unusable (~2.4 GB for a
-// 20-minute farm-demo session). See README → "World state + packet recorder"
+// 20-minute farm-demo session). See docs/world-state-and-recorder.md
 // for the full bytes-per-type breakdown and rationale. Keep this list
 // deliberately NARROW: a filter that quietly drops something a later layer
 // needs is a fixture gap discovered months later, and re-capturing costs a

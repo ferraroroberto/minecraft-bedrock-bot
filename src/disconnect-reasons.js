@@ -6,7 +6,7 @@
 //
 // The pinned BedrockX protocol.json already carries the `DisconnectFailReason`
 // id→name enum the client compiles against, so the names are read off that
-// rather than hardcoded — a re-pin (README → "Why BedrockX") then moves the
+// rather than hardcoded — a re-pin (docs/why-bedrockx.md) then moves the
 // table with the protocol instead of silently invalidating a copy of it. Same
 // approach, and the same rationale, as src/protocol-packets.js.
 //

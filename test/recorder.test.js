@@ -172,7 +172,7 @@ test('redacts key/cert/signature/hash/bearer-shaped fields — outside the vocab
 
 test("#34: an inventory item's snake_case network_id survives — it is the item TYPE id, not NetherNet's", async () => {
   // The whole point of the trace is to become an inventory fixture corpus
-  // (README → "World state + packet recorder"). src/observation.js's
+  // (docs/world-state-and-recorder.md). src/observation.js's
   // describeInventory and src/goals.js's itemCountAtLeast both key off
   // `item.network_id`, so redacting it makes every recorded trace useless for
   // the job it was captured to do.

@@ -240,7 +240,7 @@ test('missing BedrockX internals degrade to a warning, never a throw', () => {
   probe.attach(client)
 
   // A re-pin that changes the internal shape must cost breadcrumbs, not the
-  // connection (README → "Why BedrockX and not bedrock-protocol").
+  // connection (docs/why-bedrockx.md).
   assert.doesNotThrow(() => client.emit('connect_allowed'))
   assert.ok(log.lines.some((l) => l.startsWith('WARN probe.unavailable')))
   assert.equal(probe.stage, 'signalling_ready')

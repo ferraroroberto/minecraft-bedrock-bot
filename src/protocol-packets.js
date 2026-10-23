@@ -6,7 +6,7 @@
 // "record every inbound packet" means attaching one `client.on(name, …)`
 // per name BedrockX can ever emit. This reads that name list from the same
 // `mcpe_packet` id→name mapping the library's own (de)serializer compiles
-// against, so a re-pin (README → "Why BedrockX") can never silently narrow
+// against, so a re-pin (docs/why-bedrockx.md) can never silently narrow
 // the recorder's coverage without also changing what BedrockX itself speaks.
 import { createRequire } from 'node:module'
 
