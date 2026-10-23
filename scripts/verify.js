@@ -1,10 +1,14 @@
 // The repo's single pass/fail verification gate — `npm run verify`.
 //
-// Two stages, fail-fast:
+// Three stages, fail-fast:
 //   1. `node --check` over every .js under src/ and scripts/ (the byte-compile
 //      stage — the Node equivalent of the fleet's `python -m compileall`).
 //   2. `node --test` over test/, with explicit file paths rather than a
 //      directory arg so discovery behaviour can't shift between Node majors.
+//   3. The vendored structure ratchet (scripts/structure_ratchet.py, stdlib
+//      Python): file/function/directory growth and the root layout. Needs a
+//      Python 3 on PATH or in .venv; only exit 0 passes, so exit 3 (NOT
+//      CONFIRMED) and a missing Python both fail rather than skip.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no
@@ -14,7 +18,7 @@
 // NOT prove the bot can still reach the Realm; that needs a live `npm run
 // spike`. See CLAUDE.md → "This repository".
 import { spawnSync } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -42,12 +46,34 @@ function run(args) {
   return result.status === 0
 }
 
+/**
+ * A Python 3 for the structure ratchet: the repo's .venv first, then the PATH
+ * names the Windows tower and the Mac Mini each provide. Null when none runs.
+ */
+function findPython() {
+  const candidates = [
+    path.join(root, '.venv', 'Scripts', 'python.exe'),
+    path.join(root, '.venv', 'bin', 'python'),
+    'python3',
+    'python',
+  ]
+  for (const candidate of candidates) {
+    if (path.isAbsolute(candidate) && !existsSync(candidate)) continue
+    const probe = spawnSync(candidate, ['-c', 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)'], {
+      cwd: root,
+      stdio: 'ignore',
+    })
+    if (probe.status === 0) return candidate
+  }
+  return null
+}
+
 const sources = [...jsFilesIn('src'), ...jsFilesIn('scripts')]
 const tests = jsFilesIn('test').filter((f) => f.endsWith('.test.js'))
 
 console.log(`[verify] node ${process.version} on ${process.platform}`)
 
-console.log(`[verify] stage 1/2 — node --check over ${sources.length} file(s)`)
+console.log(`[verify] stage 1/3 — node --check over ${sources.length} file(s)`)
 for (const file of sources) {
   if (!run(['--check', file])) {
     console.error(`[verify] FAILED — syntax error in ${file}`)
@@ -63,9 +89,26 @@ if (!tests.length) {
 
 // --test-timeout so a test that hangs (an async session that never settles)
 // fails loudly instead of wedging the gate until someone kills it.
-console.log(`[verify] stage 2/2 — node --test over ${tests.length} file(s)`)
+console.log(`[verify] stage 2/3 — node --test over ${tests.length} file(s)`)
 if (!run(['--test', '--test-timeout=15000', ...tests])) {
   console.error('[verify] FAILED — tests did not pass')
+  process.exit(1)
+}
+
+const python = findPython()
+if (!python) {
+  console.error('[verify] FAILED — no Python 3 on PATH or in .venv; the structure ratchet cannot run')
+  process.exit(1)
+}
+console.log('[verify] stage 3/3 — structure ratchet')
+const ratchet = spawnSync(python, ['scripts/structure_ratchet.py'], {
+  cwd: root,
+  stdio: 'inherit',
+  env: { ...process.env, PYTHONUTF8: '1' },
+})
+if (ratchet.error) throw ratchet.error
+if (ratchet.status !== 0) {
+  console.error(`[verify] FAILED — structure ratchet exited ${ratchet.status}`)
   process.exit(1)
 }
 
