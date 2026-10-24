@@ -31,7 +31,7 @@ A new module goes in `src/` with a name that states what it does, and its test g
 
 ## `scripts/`
 
-`verify.js` is the gate (`npm run verify`). `connect-spike.js`, `llm-hub-check.js`, `trace-stats.js` and `mine-farm-ids.js` are operator tools behind the other npm scripts. `structure_ratchet.py` is the vendored structure ratchet, copied byte-for-byte from project-scaffolding and recorded with its commit in `.fleet.toml` `[vendored]`; change it there, never here.
+`verify.js` is the gate (`npm run verify`). `connect-spike.js`, `llm-hub-check.js`, `trace-stats.js` and `mine-farm-ids.js` are operator tools behind the other npm scripts. `structure_ratchet.py` is the vendored structure ratchet, copied byte-for-byte from project-scaffolding and recorded with its commit in `.fleet.toml` `[vendored]`; change it there, never here. `instruction_ratchet.py` is vendored the same way; it lints `CLAUDE.md` and `AGENTS.md` against `.instruction-ratchet-baseline.json` as the gate's last stage.
 
 ## `docs/`
 

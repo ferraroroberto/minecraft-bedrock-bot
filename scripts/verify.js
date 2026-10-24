@@ -1,6 +1,6 @@
 // The repo's single pass/fail verification gate — `npm run verify`.
 //
-// Three stages, fail-fast:
+// Four stages, fail-fast:
 //   1. `node --check` over every .js under src/ and scripts/ (the byte-compile
 //      stage — the Node equivalent of the fleet's `python -m compileall`).
 //   2. `node --test` over test/, with explicit file paths rather than a
@@ -9,6 +9,9 @@
 //      Python): file/function/directory growth and the root layout. Needs a
 //      Python 3 on PATH or in .venv; only exit 0 passes, so exit 3 (NOT
 //      CONFIRMED) and a missing Python both fail rather than skip.
+//   4. The vendored instruction ratchet (scripts/instruction_ratchet.py): the
+//      prompt-audit lint rules over CLAUDE.md and AGENTS.md. Same Python and
+//      same exit rule as stage 3, and it needs Python 3.11+ for tomllib.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no
@@ -73,7 +76,7 @@ const tests = jsFilesIn('test').filter((f) => f.endsWith('.test.js'))
 
 console.log(`[verify] node ${process.version} on ${process.platform}`)
 
-console.log(`[verify] stage 1/3 — node --check over ${sources.length} file(s)`)
+console.log(`[verify] stage 1/4 — node --check over ${sources.length} file(s)`)
 for (const file of sources) {
   if (!run(['--check', file])) {
     console.error(`[verify] FAILED — syntax error in ${file}`)
@@ -89,7 +92,7 @@ if (!tests.length) {
 
 // --test-timeout so a test that hangs (an async session that never settles)
 // fails loudly instead of wedging the gate until someone kills it.
-console.log(`[verify] stage 2/3 — node --test over ${tests.length} file(s)`)
+console.log(`[verify] stage 2/4 — node --test over ${tests.length} file(s)`)
 if (!run(['--test', '--test-timeout=15000', ...tests])) {
   console.error('[verify] FAILED — tests did not pass')
   process.exit(1)
@@ -97,19 +100,27 @@ if (!run(['--test', '--test-timeout=15000', ...tests])) {
 
 const python = findPython()
 if (!python) {
-  console.error('[verify] FAILED — no Python 3 on PATH or in .venv; the structure ratchet cannot run')
+  console.error('[verify] FAILED — no Python 3 on PATH or in .venv; the ratchets cannot run')
   process.exit(1)
 }
-console.log('[verify] stage 3/3 — structure ratchet')
-const ratchet = spawnSync(python, ['scripts/structure_ratchet.py'], {
-  cwd: root,
-  stdio: 'inherit',
-  env: { ...process.env, PYTHONUTF8: '1' },
-})
-if (ratchet.error) throw ratchet.error
-if (ratchet.status !== 0) {
-  console.error(`[verify] FAILED — structure ratchet exited ${ratchet.status}`)
-  process.exit(1)
+// Both ratchets are vendored from project-scaffolding and run as their own
+// checks, each failing on any exit other than 0.
+const ratchets = [
+  ['stage 3/4 — structure ratchet', 'structure_ratchet'],
+  ['stage 4/4 — instruction ratchet', 'instruction_ratchet'],
+]
+for (const [label, name] of ratchets) {
+  console.log(`[verify] ${label}`)
+  const ratchet = spawnSync(python, [`scripts/${name}.py`], {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, PYTHONUTF8: '1' },
+  })
+  if (ratchet.error) throw ratchet.error
+  if (ratchet.status !== 0) {
+    console.error(`[verify] FAILED — ${name.replace('_', ' ')} exited ${ratchet.status}`)
+    process.exit(1)
+  }
 }
 
 console.log('[verify] OK — offline gate green (does NOT prove Realm connectivity)')
