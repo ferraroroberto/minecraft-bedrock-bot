@@ -1,6 +1,6 @@
 // The repo's single pass/fail verification gate — `npm run verify`.
 //
-// Five stages, fail-fast:
+// Fail-fast stages:
 //   1. `node --check` over every .js under src/ and scripts/ (the byte-compile
 //      stage — the Node equivalent of the fleet's `python -m compileall`).
 //   2. `node --test` over test/, with explicit file paths rather than a
@@ -15,18 +15,22 @@
 //   5. The vendored doc-refs ratchet (scripts/doc_refs_ratchet.py): a repo path
 //      or relative link that README.md, CLAUDE.md or docs/ names and that no
 //      longer exists. Same Python and exit rule as stages 3 and 4.
+//   6. The vendored static ratchet (scripts/static_ratchet.py): duplicated code
+//      (jscpd through npx) and ruff's unused-name and bug rules. Same exit rule,
+//      plus Node's `npx` and `python -m ruff` must work on the gate host.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no
 // `verify-before-ship.ps1` here.
 //
-// Deliberately offline. A green gate means "nothing pure is broken" — it does
-// NOT prove the bot can still reach the Realm; that needs a live `npm run
-// spike`. See CLAUDE.md → "This repository".
+// Never touches the Realm (offline apart from the first `npx` fetch of jscpd).
+// A green gate means "nothing pure is broken" — it does NOT prove the bot can
+// still reach the Realm; that needs a live `npm run spike`. See CLAUDE.md → "This repository".
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { RATCHETS, ratchetPassed } from './gate-ratchets.js'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -79,7 +83,7 @@ const tests = jsFilesIn('test').filter((f) => f.endsWith('.test.js'))
 
 console.log(`[verify] node ${process.version} on ${process.platform}`)
 
-console.log(`[verify] stage 1/5 — node --check over ${sources.length} file(s)`)
+console.log(`[verify] stage 1/${RATCHETS.length + 2} — node --check over ${sources.length} file(s)`)
 for (const file of sources) {
   if (!run(['--check', file])) {
     console.error(`[verify] FAILED — syntax error in ${file}`)
@@ -95,7 +99,7 @@ if (!tests.length) {
 
 // --test-timeout so a test that hangs (an async session that never settles)
 // fails loudly instead of wedging the gate until someone kills it.
-console.log(`[verify] stage 2/5 — node --test over ${tests.length} file(s)`)
+console.log(`[verify] stage 2/${RATCHETS.length + 2} — node --test over ${tests.length} file(s)`)
 if (!run(['--test', '--test-timeout=15000', ...tests])) {
   console.error('[verify] FAILED — tests did not pass')
   process.exit(1)
@@ -106,13 +110,8 @@ if (!python) {
   console.error('[verify] FAILED — no Python 3 on PATH or in .venv; the ratchets cannot run')
   process.exit(1)
 }
-// All three ratchets are vendored from project-scaffolding and run as their own
-// checks, each failing on any exit other than 0.
-const ratchets = [
-  ['stage 3/5 — structure ratchet', 'structure_ratchet'],
-  ['stage 4/5 — instruction ratchet', 'instruction_ratchet'],
-  ['stage 5/5 — doc-refs ratchet', 'doc_refs_ratchet'],
-]
+// Every ratchet is vendored from project-scaffolding and run as its own check.
+const ratchets = RATCHETS.map((name, i) => [`stage ${i + 3}/${RATCHETS.length + 2} — ${name.replace(/_/g, ' ')}`, name])
 for (const [label, name] of ratchets) {
   console.log(`[verify] ${label}`)
   const ratchet = spawnSync(python, [`scripts/${name}.py`], {
@@ -121,7 +120,7 @@ for (const [label, name] of ratchets) {
     env: { ...process.env, PYTHONUTF8: '1' },
   })
   if (ratchet.error) throw ratchet.error
-  if (ratchet.status !== 0) {
+  if (!ratchetPassed(ratchet.status)) {
     console.error(`[verify] FAILED — ${name.replaceAll('_', ' ')} exited ${ratchet.status}`)
     process.exit(1)
   }
