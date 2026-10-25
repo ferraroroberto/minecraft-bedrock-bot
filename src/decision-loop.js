@@ -53,6 +53,63 @@ export function resolveActionArgs(action, world, identity) {
 }
 
 /**
+ * The only judge of success. A predicate that throws is a bug in the GOAL,
+ * not evidence of anything — it is logged loudly and counts as "not
+ * satisfied", which can only ever make the run fail, never falsely pass.
+ */
+function verifyGoal(goal, getWorld, log) {
+  try {
+    return goal.predicate(getWorld()) === true
+  } catch (err) {
+    log.error?.('loop.predicate_threw', `goal predicate threw (${String(err?.message ?? err)}) — treating the goal as NOT satisfied`)
+    return false
+  }
+}
+
+/**
+ * One model turn, with bounded repair: a malformed reply is re-requested with
+ * its validation error, up to `maxRepairAttempts` extra times.
+ * @returns {Promise<{reply: object|null, repairs: number}>} `reply` is null when no attempt validated
+ */
+async function requestReply({ goal, observation, system, model, step, maxSteps, maxRepairAttempts, maxActionsPerStep, log, record }) {
+  let lastError = null
+  let repairs = 0
+  for (let attempt = 0; attempt <= maxRepairAttempts; attempt++) {
+    const content = buildUserMessage({ goal, observation, lastError, step, maxSteps })
+    const text = await model.complete({ system, messages: [{ role: 'user', content }] })
+    try {
+      return { reply: parseAndValidateReply(text, { actionNames: ACTION_NAMES, maxActions: maxActionsPerStep }), repairs }
+    } catch (err) {
+      lastError = err.message
+      repairs += 1
+      log.warn?.('loop.invalid_reply', `step ${step}: ${lastError}`)
+      record({ event: 'invalid_reply', step, error: lastError })
+    }
+  }
+  log.error?.('loop.unrepairable_reply', `step ${step}: model output never validated — last error: ${lastError}`)
+  return { reply: null, repairs }
+}
+
+/** Execute a step's actions in order through performAction, stopping at the first failure. @returns {Promise<number>} how many were executed */
+async function runActionBatch({ actions, step, getWorld, identity, performAction, outcomes, log }) {
+  let executed = 0
+  for (const action of actions) {
+    const args = resolveActionArgs(action, getWorld(), identity)
+    const result = await performAction(action.type, args)
+    executed += 1
+    outcomes.push({ step, action: action.type, args, result })
+    if (!result.ok) {
+      // Later actions in a batch were planned assuming this one worked, so
+      // running them now would compound a wrong assumption. Stop, and let
+      // the model see the failure in the next observation.
+      log.warn?.('loop.action_failed', `step ${step}: ${action.type} — ${result.reason ?? 'no reason given'}`)
+      break
+    }
+  }
+  return executed
+}
+
+/**
  * Run one goal to a verified conclusion.
  *
  * @param {object} deps
@@ -89,19 +146,7 @@ export async function runGoal({
 
   const record = (entry) => audit?.record?.({ ts: now(), scope: 'decision_loop', goal: goal.description, ...entry })
 
-  /**
-   * The only judge of success. A predicate that throws is a bug in the GOAL,
-   * not evidence of anything — it is logged loudly and counts as "not
-   * satisfied", which can only ever make the run fail, never falsely pass.
-   */
-  const verify = () => {
-    try {
-      return goal.predicate(getWorld()) === true
-    } catch (err) {
-      log.error?.('loop.predicate_threw', `goal predicate threw (${String(err?.message ?? err)}) — treating the goal as NOT satisfied`)
-      return false
-    }
-  }
+  const verify = () => verifyGoal(goal, getWorld, log)
 
   // Takes a reason, never an outcome: `ok` cannot be claimed, only measured.
   const finish = (reason) => {
@@ -121,21 +166,11 @@ export async function runGoal({
 
   /** One model turn, with bounded repair. @returns {object|null} a validated reply, or null when it never validated. */
   const askModel = async (observation) => {
-    let lastError = null
-    for (let attempt = 0; attempt <= maxRepairAttempts; attempt++) {
-      const content = buildUserMessage({ goal, observation, lastError, step: steps, maxSteps })
-      const text = await model.complete({ system, messages: [{ role: 'user', content }] })
-      try {
-        return parseAndValidateReply(text, { actionNames: ACTION_NAMES, maxActions: maxActionsPerStep })
-      } catch (err) {
-        lastError = err.message
-        repairAttempts += 1
-        log.warn?.('loop.invalid_reply', `step ${steps}: ${lastError}`)
-        record({ event: 'invalid_reply', step: steps, error: lastError })
-      }
-    }
-    log.error?.('loop.unrepairable_reply', `step ${steps}: model output never validated — last error: ${lastError}`)
-    return null
+    const { reply, repairs } = await requestReply({
+      goal, observation, system, model, step: steps, maxSteps, maxRepairAttempts, maxActionsPerStep, log, record,
+    })
+    repairAttempts += repairs
+    return reply
   }
 
   if (verify()) return finish('goal was already satisfied before any action was taken')
@@ -154,19 +189,9 @@ export async function runGoal({
       return finish(`model gave up on step ${steps}: ${reply.reason ?? 'no reason given'}`)
     }
 
-    for (const action of reply.actions) {
-      const args = resolveActionArgs(action, getWorld(), identity)
-      const result = await performAction(action.type, args)
-      actionsExecuted += 1
-      outcomes.push({ step: steps, action: action.type, args, result })
-      if (!result.ok) {
-        // Later actions in a batch were planned assuming this one worked, so
-        // running them now would compound a wrong assumption. Stop, and let
-        // the model see the failure in the next observation.
-        log.warn?.('loop.action_failed', `step ${steps}: ${action.type} — ${result.reason ?? 'no reason given'}`)
-        break
-      }
-    }
+    actionsExecuted += await runActionBatch({
+      actions: reply.actions, step: steps, getWorld, identity, performAction, outcomes, log,
+    })
 
     if (verify()) return finish(`goal verified from world state after ${steps} step(s)`)
 

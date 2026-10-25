@@ -181,6 +181,99 @@ const ACTIONS = {
 export const ACTION_NAMES = Object.freeze(Object.keys(ACTIONS))
 
 /**
+ * Shared gate sequence (steps 3-4 of the header): region check (spatial actions
+ * only), then precondition, against `worldBefore`. Both the streaming branch
+ * (move_to/look_at) and the one-shot branch run exactly this sequence before
+ * their dry-run/write split — one function so a new check can't be added to one
+ * branch and forgotten in the other.
+ */
+function runGate({ name, args, spec, worldBefore, record }, { config, log }) {
+  if (spec.spatial) {
+    const regionCheck = checkRegion(config.region, args)
+    if (!regionCheck.ok) {
+      log.warn?.('action.refused', `${name}: ${regionCheck.reason}`)
+      record(regionCheck)
+      return regionCheck
+    }
+  }
+
+  const preCheck = spec.precondition(args, worldBefore, config)
+  if (!preCheck.ok) {
+    log.warn?.('action.refused', `${name}: ${preCheck.reason}`)
+    record(preCheck)
+    return preCheck
+  }
+
+  return { ok: true }
+}
+
+async function performStreamingAction(call, deps) {
+  const { name, args, spec, worldBefore, record } = call
+  const { client, getWorld, setWorld, sleep, config, log } = deps
+
+  const argCheck = spec.validate(args)
+  if (!argCheck.ok) {
+    log.warn?.('action.refused', argCheck.reason)
+    record(argCheck)
+    return argCheck
+  }
+
+  const gateResult = runGate(call, deps)
+  if (!gateResult.ok) return gateResult
+
+  if (!config.armed) {
+    const estimatedTicks = spec.estimateTicks(args, worldBefore, config)
+    const result = { ok: true, dryRun: true, wouldWrite: [`player_auth_input ×~${estimatedTicks}`], estimatedTicks }
+    log.info?.('action.dry_run', `${name}: would write ${result.wouldWrite[0]}`)
+    record(result)
+    return result
+  }
+
+  const streamResult = await spec.run(args, worldBefore, { client, getWorld, setWorld, sleep, config, log })
+  log.info?.('action.written', `${name}: sent ${streamResult.ticksSent} player_auth_input tick(s)`)
+  record(streamResult)
+  return streamResult
+}
+
+async function performOneShotAction(call, deps) {
+  const { name, args, spec, worldBefore, record } = call
+  const { client, waitForWorld, config, log } = deps
+
+  let packets
+  try {
+    packets = spec.build(args, worldBefore)
+  } catch (err) {
+    const reason = err instanceof InvalidActionArgsError ? err.message : String(err?.message ?? err)
+    const result = refuse(reason)
+    log.warn?.('action.refused', reason)
+    record(result)
+    return result
+  }
+
+  const gateResult = runGate(call, deps)
+  if (!gateResult.ok) return gateResult
+
+  if (!config.armed) {
+    const result = { ok: true, dryRun: true, wouldWrite: packets.map((p) => p.name) }
+    log.info?.('action.dry_run', `${name}: would write ${result.wouldWrite.join(', ')}`)
+    record(result)
+    return result
+  }
+
+  for (const packet of packets) client.write(packet.name, packet.params)
+  log.info?.('action.written', `${name}: wrote ${packets.map((p) => p.name).join(', ')}`)
+
+  const timeoutMs = config.outcomeTimeoutMs ?? DEFAULT_OUTCOME_TIMEOUT_MS
+  const confirmed = await spec.verify(args, { waitForWorld, timeoutMs, worldBefore })
+  const result = confirmed
+    ? { ok: true, dryRun: false }
+    : { ok: false, timedOut: true, reason: `${name}: effect not confirmed from world state within ${timeoutMs}ms` }
+  if (!confirmed) log.warn?.('action.unverified', result.reason)
+  record(result)
+  return result
+}
+
+/**
  * @param {object} deps
  * @param {(name: string, params: object) => void} deps.client            client.write-shaped — only ever called when config.armed
  * @param {() => object} deps.getWorld                                     current world state snapshot (src/world.js)
@@ -239,90 +332,9 @@ export function createActionRunner({
       return result
     }
 
-    const worldBefore = getWorld()
-
-    // Shared gate sequence (steps 3-4 above): region check (spatial actions
-    // only), then precondition, against `worldBefore`. Both the streaming
-    // branch (move_to/look_at) and the one-shot branch run exactly this
-    // sequence before their dry-run/write split — hoisted once so a new
-    // check can't be added to one branch and forgotten in the other.
-    function runGate() {
-      if (spec.spatial) {
-        const regionCheck = checkRegion(config.region, args)
-        if (!regionCheck.ok) {
-          log.warn?.('action.refused', `${name}: ${regionCheck.reason}`)
-          record(regionCheck)
-          return regionCheck
-        }
-      }
-
-      const preCheck = spec.precondition(args, worldBefore, config)
-      if (!preCheck.ok) {
-        log.warn?.('action.refused', `${name}: ${preCheck.reason}`)
-        record(preCheck)
-        return preCheck
-      }
-
-      return { ok: true }
-    }
-
-    if (spec.stream) {
-      const argCheck = spec.validate(args)
-      if (!argCheck.ok) {
-        log.warn?.('action.refused', argCheck.reason)
-        record(argCheck)
-        return argCheck
-      }
-
-      const gateResult = runGate()
-      if (!gateResult.ok) return gateResult
-
-      if (!config.armed) {
-        const estimatedTicks = spec.estimateTicks(args, worldBefore, config)
-        const result = { ok: true, dryRun: true, wouldWrite: [`player_auth_input ×~${estimatedTicks}`], estimatedTicks }
-        log.info?.('action.dry_run', `${name}: would write ${result.wouldWrite[0]}`)
-        record(result)
-        return result
-      }
-
-      const streamResult = await spec.run(args, worldBefore, { client, getWorld, setWorld, sleep, config, log })
-      log.info?.('action.written', `${name}: sent ${streamResult.ticksSent} player_auth_input tick(s)`)
-      record(streamResult)
-      return streamResult
-    }
-
-    let packets
-    try {
-      packets = spec.build(args, worldBefore)
-    } catch (err) {
-      const reason = err instanceof InvalidActionArgsError ? err.message : String(err?.message ?? err)
-      const result = refuse(reason)
-      log.warn?.('action.refused', reason)
-      record(result)
-      return result
-    }
-
-    const gateResult = runGate()
-    if (!gateResult.ok) return gateResult
-
-    if (!config.armed) {
-      const result = { ok: true, dryRun: true, wouldWrite: packets.map((p) => p.name) }
-      log.info?.('action.dry_run', `${name}: would write ${result.wouldWrite.join(', ')}`)
-      record(result)
-      return result
-    }
-
-    for (const packet of packets) client.write(packet.name, packet.params)
-    log.info?.('action.written', `${name}: wrote ${packets.map((p) => p.name).join(', ')}`)
-
-    const timeoutMs = config.outcomeTimeoutMs ?? DEFAULT_OUTCOME_TIMEOUT_MS
-    const confirmed = await spec.verify(args, { waitForWorld, timeoutMs, worldBefore })
-    const result = confirmed
-      ? { ok: true, dryRun: false }
-      : { ok: false, timedOut: true, reason: `${name}: effect not confirmed from world state within ${timeoutMs}ms` }
-    if (!confirmed) log.warn?.('action.unverified', result.reason)
-    record(result)
-    return result
+    const call = { name, args, spec, worldBefore: getWorld(), record }
+    const deps = { client, getWorld, waitForWorld, setWorld, sleep, config, log }
+    return spec.stream ? performStreamingAction(call, deps) : performOneShotAction(call, deps)
   }
 
   return { performAction }

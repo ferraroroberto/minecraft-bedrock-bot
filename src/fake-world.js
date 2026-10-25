@@ -26,72 +26,61 @@ export const DEFAULT_PLACED_RUNTIME_ID = 1
 const AIR_ITEM = Object.freeze({ network_id: 0 })
 
 /**
- * @param {object} [options]
- * @param {object[]} [options.inventory]                       item objects, array index = slot
- * @param {Record<string, number>} [options.blocks]            { "x,y,z": block_runtime_id } already observed
- * @param {object[]} [options.entities]                        [{ runtimeId, uniqueId, type, username, position }]
- * @param {(heldItem: object) => number} [options.placedRuntimeIdFor]
- * @param {(api: object, transactionData: object) => void} [options.useItemEffect]
- *   default: NOTHING happens. Matches reality closely enough to matter — the performAction gate documents that use_item's effect is not
- *   uniformly observable, so the default makes use_item correctly report unverified rather than flattering the loop.
- * @param {(input: {tick: number, position: object}) => object|null} [options.correctionFor]
- *   return a position to make the server disagree with an outbound player_auth_input (correct_player_move_prediction)
+ * Runs one outbound packet's world effect, unless a test asked for the next
+ * one to be swallowed. Swallowing is keyed on EFFECTS, not on writes, so
+ * failNext() suppresses a whole break (start_break + stop_break writes, one
+ * effect) rather than half of it.
  */
-export function createFakeWorld({
-  position = { x: 0, y: 64, z: 0 },
-  rotation = { pitch: 0, yaw: 0 },
-  runtimeEntityId = 1,
-  gamemode = 'survival',
-  dimension = 'overworld',
-  health = 20,
-  hunger = 20,
-  inventory = [],
-  selectedHotbarSlot = 0,
-  blocks = {},
-  entities = [],
-  airRuntimeId = DEFAULT_AIR_RUNTIME_ID,
-  placedRuntimeIdFor = (heldItem) => (Number.isFinite(heldItem?.block_runtime_id) ? heldItem.block_runtime_id : DEFAULT_PLACED_RUNTIME_ID),
-  useItemEffect = null,
-  correctionFor = null,
-} = {}) {
-  let world = createWorldState()
-  const written = []
-  const inbound = []
-  let suppressedEffects = 0
-
-  /** Feed a synthesized INBOUND packet through the real reducer — the only way this world's state ever changes. */
-  function emit(name, packet) {
-    inbound.push({ name, packet })
-    world = reduce(world, name, packet)
+function createEffectGate() {
+  let suppressed = 0
+  return {
+    apply(fn) {
+      if (suppressed > 0) {
+        suppressed -= 1
+        return
+      }
+      fn()
+    },
+    suppressNext(count) {
+      suppressed += count
+    },
   }
+}
 
-  /**
-   * Run one outbound packet's world effect, unless a test asked for the next
-   * one to be swallowed. Swallowing is keyed on EFFECTS, not on writes, so
-   * failNext() suppresses a whole break (start_break + stop_break writes, one
-   * effect) rather than half of it.
-   */
-  function applyEffect(fn) {
-    if (suppressedEffects > 0) {
-      suppressedEffects -= 1
-      return
+/** Seed the starting state THROUGH the reducer, exactly as a real join would. */
+function seedInitialState(emit, { position, rotation, runtimeEntityId, gamemode, dimension, health, hunger, inventory, selectedHotbarSlot, blocks, entities }) {
+  emit('start_game', {
+    runtime_entity_id: runtimeEntityId,
+    player_position: position,
+    rotation: { x: rotation.pitch, z: rotation.yaw }, // vec2f: x=pitch, z=yaw (see src/world.js)
+    player_gamemode: gamemode,
+    dimension,
+  })
+  const attributes = []
+  if (Number.isFinite(health)) attributes.push({ name: 'minecraft:health', current: health })
+  if (Number.isFinite(hunger)) attributes.push({ name: 'minecraft:player.hunger', current: hunger })
+  if (attributes.length) emit('update_attributes', { attributes })
+  emit('inventory_content', { window_id: 'inventory', input: inventory })
+  emit('player_hotbar', { selected_slot: selectedHotbarSlot })
+  for (const [key, runtimeId] of Object.entries(blocks)) {
+    const position = parseBlockKey(key)
+    if (!position) continue
+    emit('update_block', { position, block_runtime_id: runtimeId })
+  }
+  for (const entity of entities) {
+    const packet = {
+      runtime_id: entity.runtimeId,
+      unique_id: entity.uniqueId ?? entity.runtimeId,
+      position: entity.position,
     }
-    fn()
+    if (entity.type === 'player') emit('add_player', { ...packet, username: entity.username ?? 'player' })
+    else emit('add_entity', { ...packet, entity_type: entity.type ?? 'unknown' })
   }
+}
 
-  function setInventorySlot(slot, item) {
-    emit('inventory_slot', { window_id: 'inventory', slot, item })
-  }
-
-  function consumeOne(hotbarSlot) {
-    const item = world.inventory.windows.inventory?.[hotbarSlot]
-    if (!item || !Number.isFinite(item.count)) return
-    setInventorySlot(hotbarSlot, item.count > 1 ? { ...item, count: item.count - 1 } : { ...AIR_ITEM })
-  }
-
-  const api = { emit, setInventorySlot, getWorld: () => world }
-
-  const OUTBOUND = {
+/** Outbound packet name → the world effect it has, each routed through the real reducer via `emit`. */
+function createOutboundHandlers({ world, emit, applyEffect, consumeOne, api, airRuntimeId, placedRuntimeIdFor, useItemEffect, correctionFor }) {
+  return {
     // Chat has no delivery acknowledgement on Bedrock — the performAction gate documents this as
     // the one action reported sent rather than verified. Recording the write
     // and changing nothing is the faithful behaviour, not a gap.
@@ -106,7 +95,7 @@ export function createFakeWorld({
       applyEffect(() => {
         // A block never observed is not made to exist here — the performAction gate's own
         // precondition refuses that case before it reaches the wire.
-        if (getBlockAt(world, params.position.x, params.position.y, params.position.z) === null) return
+        if (getBlockAt(world(), params.position.x, params.position.y, params.position.z) === null) return
         emit('update_block', { position: params.position, block_runtime_id: airRuntimeId })
       })
     },
@@ -140,35 +129,73 @@ export function createFakeWorld({
       }
     },
   }
+}
 
-  // Seed the starting state THROUGH the reducer, exactly as a real join would.
-  emit('start_game', {
-    runtime_entity_id: runtimeEntityId,
-    player_position: position,
-    rotation: { x: rotation.pitch, z: rotation.yaw }, // vec2f: x=pitch, z=yaw (see src/world.js)
-    player_gamemode: gamemode,
-    dimension,
+/**
+ * @param {object} [options]
+ * @param {object[]} [options.inventory]                       item objects, array index = slot
+ * @param {Record<string, number>} [options.blocks]            { "x,y,z": block_runtime_id } already observed
+ * @param {object[]} [options.entities]                        [{ runtimeId, uniqueId, type, username, position }]
+ * @param {(heldItem: object) => number} [options.placedRuntimeIdFor]
+ * @param {(api: object, transactionData: object) => void} [options.useItemEffect]
+ *   default: NOTHING happens. Matches reality closely enough to matter — the performAction gate documents that use_item's effect is not
+ *   uniformly observable, so the default makes use_item correctly report unverified rather than flattering the loop.
+ * @param {(input: {tick: number, position: object}) => object|null} [options.correctionFor]
+ *   return a position to make the server disagree with an outbound player_auth_input (correct_player_move_prediction)
+ */
+export function createFakeWorld({
+  position = { x: 0, y: 64, z: 0 },
+  rotation = { pitch: 0, yaw: 0 },
+  runtimeEntityId = 1,
+  gamemode = 'survival',
+  dimension = 'overworld',
+  health = 20,
+  hunger = 20,
+  inventory = [],
+  selectedHotbarSlot = 0,
+  blocks = {},
+  entities = [],
+  airRuntimeId = DEFAULT_AIR_RUNTIME_ID,
+  placedRuntimeIdFor = (heldItem) => (Number.isFinite(heldItem?.block_runtime_id) ? heldItem.block_runtime_id : DEFAULT_PLACED_RUNTIME_ID),
+  useItemEffect = null,
+  correctionFor = null,
+} = {}) {
+  let world = createWorldState()
+  const written = []
+  const inbound = []
+  const effects = createEffectGate()
+
+  /** Feed a synthesized INBOUND packet through the real reducer — the only way this world's state ever changes. */
+  function emit(name, packet) {
+    inbound.push({ name, packet })
+    world = reduce(world, name, packet)
+  }
+
+  function setInventorySlot(slot, item) {
+    emit('inventory_slot', { window_id: 'inventory', slot, item })
+  }
+
+  function consumeOne(hotbarSlot) {
+    const item = world.inventory.windows.inventory?.[hotbarSlot]
+    if (!item || !Number.isFinite(item.count)) return
+    setInventorySlot(hotbarSlot, item.count > 1 ? { ...item, count: item.count - 1 } : { ...AIR_ITEM })
+  }
+
+  const api = { emit, setInventorySlot, getWorld: () => world }
+
+  const OUTBOUND = createOutboundHandlers({
+    world: () => world,
+    emit,
+    applyEffect: effects.apply,
+    consumeOne,
+    api,
+    airRuntimeId,
+    placedRuntimeIdFor,
+    useItemEffect,
+    correctionFor,
   })
-  const attributes = []
-  if (Number.isFinite(health)) attributes.push({ name: 'minecraft:health', current: health })
-  if (Number.isFinite(hunger)) attributes.push({ name: 'minecraft:player.hunger', current: hunger })
-  if (attributes.length) emit('update_attributes', { attributes })
-  emit('inventory_content', { window_id: 'inventory', input: inventory })
-  emit('player_hotbar', { selected_slot: selectedHotbarSlot })
-  for (const [key, runtimeId] of Object.entries(blocks)) {
-    const position = parseBlockKey(key)
-    if (!position) continue
-    emit('update_block', { position, block_runtime_id: runtimeId })
-  }
-  for (const entity of entities) {
-    const packet = {
-      runtime_id: entity.runtimeId,
-      unique_id: entity.uniqueId ?? entity.runtimeId,
-      position: entity.position,
-    }
-    if (entity.type === 'player') emit('add_player', { ...packet, username: entity.username ?? 'player' })
-    else emit('add_entity', { ...packet, entity_type: entity.type ?? 'unknown' })
-  }
+
+  seedInitialState(emit, { position, rotation, runtimeEntityId, gamemode, dimension, health, hunger, inventory, selectedHotbarSlot, blocks, entities })
 
   return {
     /** The client surface the performAction gate writes to. */
@@ -198,7 +225,7 @@ export function createFakeWorld({
 
     /** Make the next `count` world effects be swallowed — a server that ignored the action. */
     failNext(count = 1) {
-      suppressedEffects += count
+      effects.suppressNext(count)
     },
 
     get written() {
