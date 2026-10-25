@@ -23,6 +23,9 @@
 //      Python and exit rule as the other ratchets.
 //   8. The vendored comment ratchet (scripts/comment_ratchet.py): issue-number
 //      references in the comments of product code. Same Python and exit rule.
+//   9. The vendored dead-code ratchet (scripts/dead_code_ratchet.py): Python
+//      functions, classes and methods that nothing references. Same Python and
+//      exit rule; it has nothing of its own to scan while the repo's code is JS.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no
