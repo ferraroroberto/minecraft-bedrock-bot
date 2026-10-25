@@ -26,6 +26,9 @@
 //   9. The vendored dead-code ratchet (scripts/dead_code_ratchet.py): Python
 //      functions, classes and methods that nothing references. Same Python and
 //      exit rule; it has nothing of its own to scan while the repo's code is JS.
+//  10. The vendored conventions ratchet (scripts/conventions_ratchet.py): the
+//      no-window and no-drive-path rules over tracked Python. Same Python and
+//      exit rule, and likewise nothing of its own to scan while the code is JS.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no

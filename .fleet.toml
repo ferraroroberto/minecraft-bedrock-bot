@@ -28,6 +28,7 @@ static_ratchet = { src = "scripts/static_ratchet.py", sha = "537cf3931b57e7453ed
 docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "fdb750461997c4a13eacea8091f115ff12bba564", dest = "scripts/docs_ratchet.py" }
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "e56308e1c099712cf5a006557c94e3f9ae4fe8aa", dest = "scripts/comment_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "8cc9a5f908c48dabc69971ff958869dffed1ba21", dest = "scripts/dead_code_ratchet.py" }
+conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "0eb0da42298e391fc614b3fe550bd6cf2d07c693", dest = "scripts/conventions_ratchet.py" }
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. `npm run
 # verify` runs scripts/structure_ratchet.py and fails when a new file passes 1,000
@@ -121,3 +122,22 @@ baseline = ".comment-ratchet-baseline.json"
 [dead_code_ratchet]
 enabled  = true
 baseline = ".dead-code-ratchet-baseline.json"
+
+# [conventions_ratchet] -- the scaffold's baseline-and-ratchet stage for fleet
+# conventions held as Python `ast` rules. `npm run verify` runs
+# scripts/conventions_ratchet.py and fails when a tracked Python file gains a hit
+# beyond .conventions-ratchet-baseline.json. It reads Python only, and this repo's
+# code is JavaScript, so the rules below guard a Python helper added later. Exit 3
+# (git unusable, an unparseable .py file) fails the gate. Needs Python 3.11+
+# (tomllib). Procedure: project-scaffolding docs/conventions-ratchet.md.
+#   no-window      kept: the Windows tower spawns the gate's Python helpers, and a
+#                  spawn without CREATE_NO_WINDOW pops a console there.
+#   no-drive-path  kept: the repo runs on the Windows tower and the Mac Mini, so a
+#                  hardcoded drive-letter path is wrong on one of them.
+#   logging-not-print  left off: its default scope is app/ and src/, which hold no
+#                  Python here, and a Python helper in scripts/ is a CLI by nature.
+#   secret-compare, git-wrapper  left off: the repo has neither helper.
+[conventions_ratchet]
+enabled  = true
+baseline = ".conventions-ratchet-baseline.json"
+rules    = ["no-window", "no-drive-path"]
