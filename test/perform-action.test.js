@@ -26,6 +26,22 @@ function fakeClient() {
   return { written, write: (name, params) => written.push({ name, params }) }
 }
 
+/** Runs `action` against an armed runner and asserts the refusal names an empty slot with zero packets written. */
+async function assertRefusedAsEmpty(world, action, params) {
+  const client = fakeClient()
+  const { performAction } = createActionRunner({
+    client,
+    getWorld: () => world,
+    waitForWorld: waitForWorldTimingOut,
+    config: { armed: true },
+  })
+  const result = await performAction(action, params)
+  assert.equal(result.ok, false)
+  assert.equal(result.refused, true)
+  assert.match(result.reason, /empty/)
+  assert.equal(client.written.length, 0)
+}
+
 test('dry-run writes zero packets while still reporting a plan', async () => {
   const client = fakeClient()
   const world = makeWorld()
@@ -144,51 +160,18 @@ test('break_block times out and reports FAILURE, not success, when the block nev
 })
 
 test('place_block is refused when the hotbar slot is empty — nothing to place', async () => {
-  const client = fakeClient()
   const world = makeWorld({ position: { x: 0, y: 0, z: 0 } })
-  const { performAction } = createActionRunner({
-    client,
-    getWorld: () => world,
-    waitForWorld: waitForWorldTimingOut,
-    config: { armed: true },
-  })
-  const result = await performAction('place_block', { x: 1, y: 0, z: 0, face: 1, hotbarSlot: 0 })
-  assert.equal(result.ok, false)
-  assert.equal(result.refused, true)
-  assert.match(result.reason, /empty/)
-  assert.equal(client.written.length, 0)
+  await assertRefusedAsEmpty(world, 'place_block', { x: 1, y: 0, z: 0, face: 1, hotbarSlot: 0 })
 })
 
 test('place_block is refused when the hotbar slot holds the protocol\'s explicit "no item" payload (network_id 0), not just undefined/null', async () => {
-  const client = fakeClient()
   const world = makeWorld({ inventory: { 0: { network_id: 0 } }, position: { x: 0, y: 0, z: 0 } })
-  const { performAction } = createActionRunner({
-    client,
-    getWorld: () => world,
-    waitForWorld: waitForWorldTimingOut,
-    config: { armed: true },
-  })
-  const result = await performAction('place_block', { x: 1, y: 0, z: 0, face: 1, hotbarSlot: 0 })
-  assert.equal(result.ok, false)
-  assert.equal(result.refused, true)
-  assert.match(result.reason, /empty/)
-  assert.equal(client.written.length, 0)
+  await assertRefusedAsEmpty(world, 'place_block', { x: 1, y: 0, z: 0, face: 1, hotbarSlot: 0 })
 })
 
 test('use_item is refused when the hotbar slot holds the protocol\'s explicit "no item" payload (network_id 0), not just undefined/null', async () => {
-  const client = fakeClient()
   const world = makeWorld({ inventory: { 0: { network_id: 0 } }, position: { x: 0, y: 0, z: 0 } })
-  const { performAction } = createActionRunner({
-    client,
-    getWorld: () => world,
-    waitForWorld: waitForWorldTimingOut,
-    config: { armed: true },
-  })
-  const result = await performAction('use_item', { hotbarSlot: 0 })
-  assert.equal(result.ok, false)
-  assert.equal(result.refused, true)
-  assert.match(result.reason, /empty/)
-  assert.equal(client.written.length, 0)
+  await assertRefusedAsEmpty(world, 'use_item', { hotbarSlot: 0 })
 })
 
 test('an unconfirmable use_item reports FAILURE, not success, when nothing observable changes', async () => {
