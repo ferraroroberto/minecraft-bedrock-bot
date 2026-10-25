@@ -43,4 +43,4 @@ One reference file per feature or protocol topic, indexed from the README.
 
 ## The ratchet baseline
 
-`.structure-ratchet-baseline.json` records each function already over 100 lines at its current length; none of them may grow, and a new one fails the gate. No file is over 1,000 lines and no directory is past 40 modules. Shrinking a function means lowering its entry with `scripts/structure_ratchet.py --update-baseline`; raising one needs `--allow-additions`, which shows in review.
+`.structure-ratchet-baseline.json` is empty: no function is over 100 lines, no file is over 1,000 lines and no directory is past 40 modules, so any new breach fails the gate. Baselining one needs `--allow-additions`, which shows in review; split the function instead.
