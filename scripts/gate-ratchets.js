@@ -7,6 +7,7 @@ export const RATCHETS = [
   'doc_refs_ratchet',
   'static_ratchet',
   'docs_ratchet',
+  'comment_ratchet',
 ]
 
 /** A ratchet passes only on exit 0; exit 3 (NOT CONFIRMED) fails like exit 1. */

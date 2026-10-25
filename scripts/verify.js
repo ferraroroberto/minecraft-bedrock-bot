@@ -21,6 +21,8 @@
 //   7. The vendored docs ratchet (scripts/docs_ratchet.py): README.md size and
 //      the issue-number and changelog markers in README.md and docs/. Same
 //      Python and exit rule as the other ratchets.
+//   8. The vendored comment ratchet (scripts/comment_ratchet.py): issue-number
+//      references in the comments of product code. Same Python and exit rule.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no

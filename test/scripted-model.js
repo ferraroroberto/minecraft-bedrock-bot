@@ -1,4 +1,4 @@
-// A deterministic stand-in for the hub client (#15).
+// A deterministic stand-in for the hub client.
 //
 // The decision loop takes its model as an injected dependency precisely so the
 // suite can drive it with a scripted one — no network, no hub, no account, and
