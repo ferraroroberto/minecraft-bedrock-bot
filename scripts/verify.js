@@ -18,6 +18,9 @@
 //   6. The vendored static ratchet (scripts/static_ratchet.py): duplicated code
 //      (jscpd through npx) and ruff's unused-name and bug rules. Same exit rule,
 //      plus Node's `npx` and `python -m ruff` must work on the gate host.
+//   7. The vendored docs ratchet (scripts/docs_ratchet.py): README.md size and
+//      the issue-number and changelog markers in README.md and docs/. Same
+//      Python and exit rule as the other ratchets.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no

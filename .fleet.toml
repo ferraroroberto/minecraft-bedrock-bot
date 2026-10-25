@@ -25,6 +25,7 @@ structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab4165
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "60fdd0350f18d28838428b2e773f7868f6381fbf", dest = "scripts/instruction_ratchet.py" }
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "23dbefa46635c952d3c871bda4e80b740e7f2859", dest = "scripts/doc_refs_ratchet.py" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "537cf3931b57e7453ed251850c0dbeac042b03bf", dest = "scripts/static_ratchet.py" }
+docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "fdb750461997c4a13eacea8091f115ff12bba564", dest = "scripts/docs_ratchet.py" }
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. `npm run
 # verify` runs scripts/structure_ratchet.py and fails when a new file passes 1,000
@@ -85,3 +86,14 @@ allow_refs = [
 [static_ratchet]
 enabled  = true
 baseline = ".static-ratchet-baseline.json"
+
+# [docs_ratchet] -- the scaffold's baseline-and-ratchet stage for the README and
+# docs convention. `npm run verify` runs scripts/docs_ratchet.py and fails when the
+# root README.md grows past its size in .docs-ratchet-baseline.json (40 KiB by
+# default) or a file under README.md and docs/ gains an issue-number reference, a
+# dated heading or a changelog heading. Exit 3 (git unusable, a non-UTF-8 doc, an
+# unclosed fence) fails the gate. Needs Python 3.11+ (tomllib). Procedure:
+# project-scaffolding docs/docs-ratchet.md.
+[docs_ratchet]
+enabled  = true
+baseline = ".docs-ratchet-baseline.json"
