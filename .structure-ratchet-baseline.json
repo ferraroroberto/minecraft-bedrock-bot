@@ -1,13 +1,8 @@
 {
   "version": 1,
   "entries": [
-    {"key": "fn:src/bot.js:main", "lines": 129},
     {"key": "fn:src/connect.js:runSession", "lines": 222},
     {"key": "fn:src/connect.js:runSession.<anonymous>", "lines": 177},
-    {"key": "fn:src/decision-loop.js:runGoal", "lines": 125},
-    {"key": "fn:src/fake-world.js:createFakeWorld", "lines": 172},
-    {"key": "fn:src/perform-action.js:createActionRunner", "lines": 121},
-    {"key": "fn:src/perform-action.js:createActionRunner.performAction", "lines": 103},
     {"key": "fn:src/probe.js:createConnectProbe", "lines": 211}
   ]
 }
