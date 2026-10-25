@@ -38,7 +38,7 @@ On first run a Microsoft device-code sign-in URL and one-time code are printed; 
 npm run verify
 ```
 
-One pass/fail gate, fail-fast: `node --check` over every `.js` in `src/` and `scripts/`, `node --test` over `test/`, then the vendored ratchets (structure, instruction, doc-refs, static) run through a Python 3.11+. The static ratchet needs `npx` and `pip install ruff` into the repo's `.venv`. Plain node — no PowerShell, no bash-isms — so it runs identically on both hosts. Run it before shipping anything.
+One pass/fail gate, fail-fast: `node --check` over every `.js` in `src/` and `scripts/`, `node --test` over `test/`, then the vendored ratchets (structure, instruction, doc-refs, static, docs) run through a Python 3.11+. The static ratchet needs `npx` and `pip install ruff` into the repo's `.venv`. Plain node — no PowerShell, no bash-isms — so it runs identically on both hosts. Run it before shipping anything.
 
 **It never touches the Realm by design and does not prove the bot can connect.** A live test is impossible here: it would need an interactive Microsoft sign-in and a per-machine token cache, and since only one connection can exist per Xbox account it would kick the real bot off the Realm (see [Gotchas](docs/gotchas.md)). So a green gate means *"nothing pure is broken"* — **any change to the connect path still needs a manual `npm run spike`** against the live Realm.
 
