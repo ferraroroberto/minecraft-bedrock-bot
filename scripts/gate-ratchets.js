@@ -9,6 +9,7 @@ export const RATCHETS = [
   'docs_ratchet',
   'comment_ratchet',
   'dead_code_ratchet',
+  'conventions_ratchet',
 ]
 
 /** A ratchet passes only on exit 0; exit 3 (NOT CONFIRMED) fails like exit 1. */
