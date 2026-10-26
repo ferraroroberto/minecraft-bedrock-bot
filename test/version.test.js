@@ -15,11 +15,11 @@ test('defaults to the newest bedrock version in minecraft-data', () => {
 test('the resolved default matches what the Realms API currently accepts', () => {
   // Guard against a minecraft-data bump silently changing what we announce.
   // If this fails, the pin moved — re-probe the live API before adjusting it.
-  // Last verified live against the Realm on 2026-08-13 (#47): spawned and
-  // recorded a clean 4,610-packet trace on this pair.
+  // Last verified live against the Realm on 2026-10-26 (#97): connected,
+  // spawned and closed cleanly on this pair.
   const resolved = resolveVersion({})
-  assert.equal(resolved.version, '1.26.40')
-  assert.equal(resolved.protocolVersion, 2168)
+  assert.equal(resolved.version, '1.26.51')
+  assert.equal(resolved.protocolVersion, 2193)
 })
 
 test('the vendored protocol definitions match the version we announce (#47)', () => {
@@ -29,15 +29,17 @@ test('the vendored protocol definitions match the version we announce (#47)', ()
   // When the Realm moved to 1.26.40 they silently diverged: the announced
   // version was accepted and then every packet failed to decode.
   //
-  // `response_status_name` is the sentinel — a required field 1.26.40 added to
-  // resource_pack_client_response and 1.26.30 does not have. If patches/ ever
-  // fails to apply, this fails here rather than against a live Realm.
-  const protocol = require('bedrockx/src/protocol/protocol.json')
-  const fields = protocol.types.packet_resource_pack_client_response[1]
-  const names = fields.map((f) => f.name)
-  assert.ok(
-    names.includes('response_status_name'),
-    'bedrockx is serving 1.26.30-era protocol definitions — is patches/bedrockx+1.3.4.patch applied? (npm ci)'
+  // The patch vendors minecraft-data's protocol.json verbatim, so the two must
+  // be identical. This fails here, not against a live Realm, when patches/
+  // did not apply or a minecraft-data bump was not followed by regenerating it.
+  const { version } = resolveVersion({})
+  const vendored = require('bedrockx/src/protocol/protocol.json')
+  const announced = require('minecraft-data')(`bedrock_${version}`).protocol
+  assert.deepStrictEqual(
+    vendored,
+    announced,
+    `bedrockx's protocol.json is not minecraft-data's ${version} definitions — is patches/bedrockx+1.3.4.patch ` +
+      'applied (npm ci), and was it regenerated after the last minecraft-data bump? (docs/setup-and-machines.md)'
   )
 })
 
