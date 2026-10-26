@@ -124,14 +124,16 @@ function buildInventoryTransactionPacket({ actionType, blockPosition, face, hotb
         legacy: { legacy_request_id: 0, legacy_transactions: null },
         transaction_type: 'item_use',
         // No container-slot actions accompany a bare item-use transaction —
-        // that field is for multi-slot inventory moves, out of scope here.
-        actions: null,
+        // that field is for multi-slot inventory moves, out of scope here. It
+        // is a plain array on the wire, not an option, so "none" is [].
+        actions: [],
         transaction_data: {
           action_type: actionType,
           trigger_type: 'player_input',
           block_position: blockPosition,
           face,
           hotbar_slot: hotbarSlot,
+          hand: 'main_hand', // the bot only ever acts with the hotbar item, never the off-hand
           held_item: heldItem,
           player_pos: playerPosition,
           click_pos: clickPosition,

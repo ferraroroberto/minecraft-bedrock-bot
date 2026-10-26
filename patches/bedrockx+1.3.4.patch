@@ -185,7 +185,7 @@ index 3ffb2fc..772d787 100644
  
      const jws = await new CompactSign(encoder.encode(payload)).setProtectedHeader({ alg: "ES384" }).sign(ecPrivateKey);
 diff --git a/node_modules/bedrockx/src/protocol/protocol.json b/node_modules/bedrockx/src/protocol/protocol.json
-index d0bd68f..60b0993 100644
+index d0bd68f..435c6a0 100644
 --- a/node_modules/bedrockx/src/protocol/protocol.json
 +++ b/node_modules/bedrockx/src/protocol/protocol.json
 @@ -51,6 +51,8 @@
@@ -487,8 +487,23 @@ index d0bd68f..60b0993 100644
          ]
        }
      ],
-@@ -1514,7 +1357,7 @@
+@@ -1512,9 +1355,22 @@
+           "name": "hotbar_slot",
+           "type": "zigzag32"
          },
++        {
++          "name": "hand",
++          "type": [
++            "mapper",
++            {
++              "type": "u8",
++              "mappings": {
++                "0": "main_hand",
++                "1": "off_hand"
++              }
++            }
++          ]
++        },
          {
            "name": "held_item",
 -          "type": "Item"
@@ -496,7 +511,69 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "player_pos",
-@@ -1787,7 +1630,7 @@
+@@ -1580,10 +1436,6 @@
+                 }
+               ]
+             },
+-            {
+-              "name": "container_presence",
+-              "type": "bool"
+-            },
+             {
+               "name": "window_id",
+               "type": [
+@@ -1591,10 +1443,6 @@
+                 "i8"
+               ]
+             },
+-            {
+-              "name": "flag_presence",
+-              "type": "bool"
+-            },
+             {
+               "name": "flags",
+               "type": [
+@@ -1676,28 +1524,22 @@
+         {
+           "name": "transaction_type",
+           "type": [
+-            "option",
+-            [
+-              "mapper",
+-              {
+-                "type": "varint",
+-                "mappings": {
+-                  "0": "normal",
+-                  "1": "inventory_mismatch",
+-                  "2": "item_use",
+-                  "3": "item_use_on_entity",
+-                  "4": "item_release"
+-                }
++            "mapper",
++            {
++              "type": "varint",
++              "mappings": {
++                "0": "normal",
++                "1": "inventory_mismatch",
++                "2": "item_use",
++                "3": "item_use_on_entity",
++                "4": "item_release"
+               }
+-            ]
++            }
+           ]
+         },
+         {
+           "name": "actions",
+-          "type": [
+-            "option",
+-            "TransactionActions"
+-          ]
++          "type": "TransactionActions"
+         },
+         {
+           "name": "transaction_data",
+@@ -1787,7 +1629,7 @@
        "array",
        {
          "countType": "varint",
@@ -505,7 +582,7 @@ index d0bd68f..60b0993 100644
        }
      ],
      "RecipeIngredient": [
-@@ -1798,14 +1641,10 @@
+@@ -1798,14 +1640,10 @@
            "type": [
              "mapper",
              {
@@ -522,7 +599,7 @@ index d0bd68f..60b0993 100644
                }
              }
            ]
-@@ -1817,69 +1656,80 @@
+@@ -1817,69 +1655,80 @@
              {
                "compareTo": "type",
                "fields": {
@@ -546,17 +623,20 @@ index d0bd68f..60b0993 100644
 -                          "default": "li16"
 -                        }
 -                      ]
--                    }
--                  ]
--                ],
++                      "type": "zigzag32"
+                     }
+                   ]
+                 ],
 -                "molang": [
--                  "container",
--                  [
--                    {
++                "valid": [
+                   "container",
+                   [
+                     {
 -                      "name": "expression",
--                      "type": "string"
--                    },
--                    {
++                      "name": "descriptor_type",
+                       "type": "string"
+                     },
+                     {
 -                      "name": "version",
 -                      "type": "u8"
 -                    }
@@ -568,20 +648,17 @@ index d0bd68f..60b0993 100644
 -                    {
 -                      "name": "tag",
 -                      "type": "string"
-+                      "type": "zigzag32"
-                     }
-                   ]
-                 ],
+-                    }
+-                  ]
+-                ],
 -                "string_id_meta": [
-+                "valid": [
-                   "container",
-                   [
-                     {
+-                  "container",
+-                  [
+-                    {
 -                      "name": "name",
-+                      "name": "descriptor_type",
-                       "type": "string"
-                     },
-                     {
+-                      "type": "string"
+-                    },
+-                    {
 -                      "name": "metadata",
 -                      "type": "li16"
 -                    }
@@ -653,7 +730,7 @@ index d0bd68f..60b0993 100644
                      }
                    ]
                  ]
-@@ -1951,442 +1801,196 @@
+@@ -1951,442 +1800,196 @@
          ]
        }
      ],
@@ -664,7 +741,26 @@ index d0bd68f..60b0993 100644
 -        "type": [
 -          "container",
 -          [
--            {
++    "ShapedRecipe": [
++      "container",
++      [
++        {
++          "name": "recipe_id",
++          "type": "LatinString"
++        },
++        {
++          "name": "width",
++          "type": "zigzag32"
++        },
++        {
++          "name": "height",
++          "type": "zigzag32"
++        },
++        {
++          "name": "input",
++          "type": [
++            "array",
+             {
 -              "name": "type",
 -              "type": [
 -                "mapper",
@@ -685,23 +781,13 @@ index d0bd68f..60b0993 100644
 -                }
 -              ]
 -            },
-+    "ShapedRecipe": [
-+      "container",
-+      [
-+        {
-+          "name": "recipe_id",
-+          "type": "LatinString"
++              "countType": "varint",
++              "type": "RecipeIngredient"
++            }
++          ]
 +        },
 +        {
-+          "name": "width",
-+          "type": "zigzag32"
-+        },
-+        {
-+          "name": "height",
-+          "type": "zigzag32"
-+        },
-+        {
-+          "name": "input",
++          "name": "output",
 +          "type": [
 +            "array",
              {
@@ -1109,21 +1195,11 @@ index d0bd68f..60b0993 100644
 -                }
 -              ]
 +              "countType": "varint",
-+              "type": "RecipeIngredient"
++              "type": "ItemLegacy"
              }
            ]
 -        ]
 -      }
-+        },
-+        {
-+          "name": "output",
-+          "type": [
-+            "array",
-+            {
-+              "countType": "varint",
-+              "type": "ItemLegacy"
-+            }
-+          ]
 +        },
 +        {
 +          "name": "uuid",
@@ -1283,7 +1359,7 @@ index d0bd68f..60b0993 100644
      ],
      "RecipeUnlockingRequirement": [
        "container",
-@@ -2396,7 +2000,7 @@
+@@ -2396,7 +1999,7 @@
            "type": [
              "mapper",
              {
@@ -1292,7 +1368,7 @@ index d0bd68f..60b0993 100644
                "mappings": {
                  "0": "none",
                  "1": "always_unlocked",
-@@ -2409,19 +2013,14 @@
+@@ -2409,19 +2012,14 @@
          {
            "name": "ingredients",
            "type": [
@@ -1319,7 +1395,7 @@ index d0bd68f..60b0993 100644
            ]
          }
        ]
-@@ -2443,6 +2042,43 @@
+@@ -2443,6 +2041,43 @@
          }
        ]
      ],
@@ -1363,7 +1439,7 @@ index d0bd68f..60b0993 100644
      "Skin": [
        "container",
        [
-@@ -2467,7 +2103,7 @@
+@@ -2467,7 +2102,7 @@
            "type": [
              "array",
              {
@@ -1372,7 +1448,7 @@ index d0bd68f..60b0993 100644
                "type": [
                  "container",
                  [
-@@ -2477,7 +2113,7 @@
+@@ -2477,7 +2112,7 @@
                    },
                    {
                      "name": "animation_type",
@@ -1381,7 +1457,7 @@ index d0bd68f..60b0993 100644
                    },
                    {
                      "name": "animation_frames",
-@@ -2485,7 +2121,7 @@
+@@ -2485,7 +2120,7 @@
                    },
                    {
                      "name": "expression_type",
@@ -1390,7 +1466,7 @@ index d0bd68f..60b0993 100644
                    }
                  ]
                ]
-@@ -2518,18 +2154,27 @@
+@@ -2518,18 +2153,27 @@
          },
          {
            "name": "arm_size",
@@ -1409,7 +1485,7 @@ index d0bd68f..60b0993 100644
          {
            "name": "skin_color",
 -          "type": "string"
-+          "type": "li32"
++          "type": "i32"
          },
          {
            "name": "personal_pieces",
@@ -1421,7 +1497,7 @@ index d0bd68f..60b0993 100644
                "type": [
                  "container",
                  [
-@@ -2539,11 +2184,11 @@
+@@ -2539,11 +2183,11 @@
                    },
                    {
                      "name": "piece_type",
@@ -1435,7 +1511,7 @@ index d0bd68f..60b0993 100644
                    },
                    {
                      "name": "is_default_piece",
-@@ -2563,7 +2208,7 @@
+@@ -2563,7 +2207,7 @@
            "type": [
              "array",
              {
@@ -1444,18 +1520,18 @@ index d0bd68f..60b0993 100644
                "type": [
                  "container",
                  [
-@@ -2576,8 +2221,8 @@
+@@ -2576,8 +2220,8 @@
                      "type": [
                        "array",
                        {
 -                        "countType": "li32",
 -                        "type": "string"
 +                        "count": 4,
-+                        "type": "li32"
++                        "type": "i32"
                        }
                      ]
                    }
-@@ -2605,10 +2250,18 @@
+@@ -2605,10 +2249,18 @@
          {
            "name": "overriding_player_appearance",
            "type": "bool"
@@ -1475,7 +1551,7 @@ index d0bd68f..60b0993 100644
        "container",
        [
          {
-@@ -2616,106 +2269,58 @@
+@@ -2616,106 +2268,82 @@
            "type": [
              "mapper",
              {
@@ -1606,6 +1682,30 @@ index d0bd68f..60b0993 100644
 +                    {
 +                      "name": "platform_chat_id",
 +                      "type": "string"
++                    },
++                    {
++                      "name": "build_platform",
++                      "type": "li32"
++                    },
++                    {
++                      "name": "skin_data",
++                      "type": "Skin"
++                    },
++                    {
++                      "name": "is_teacher",
++                      "type": "bool"
++                    },
++                    {
++                      "name": "is_host",
++                      "type": "bool"
++                    },
++                    {
++                      "name": "is_subclient",
++                      "type": "bool"
++                    },
++                    {
++                      "name": "player_color",
++                      "type": "i32"
 +                    }
 +                  ]
 +                ],
@@ -1620,7 +1720,7 @@ index d0bd68f..60b0993 100644
                  ]
                }
              }
-@@ -2723,6 +2328,13 @@
+@@ -2723,6 +2351,13 @@
          }
        ]
      ],
@@ -1634,17 +1734,12 @@ index d0bd68f..60b0993 100644
      "Enchant": [
        "container",
        [
-@@ -2831,22 +2443,162 @@
-           "36": "received_server_data",
-           "37": "start_using_item"
-         }
--      }
-+      }
-+    ],
-+    "StackRequestSlotInfo": [
-+      "container",
-+      [
-+        {
+@@ -2837,16 +2472,156 @@
+       "container",
+       [
+         {
+-          "name": "slot_type",
+-          "type": "FullContainerName"
 +          "name": "slot_type",
 +          "type": "FullContainerName"
 +        },
@@ -1732,14 +1827,11 @@ index d0bd68f..60b0993 100644
 +          "type": "lu16"
 +        }
 +      ]
-     ],
--    "StackRequestSlotInfo": [
++    ],
 +    "ItemStackRequestInstanceDescriptor": [
-       "container",
-       [
-         {
--          "name": "slot_type",
--          "type": "FullContainerName"
++      "container",
++      [
++        {
 +          "name": "type",
 +          "type": [
 +            "mapper",
@@ -1751,15 +1843,12 @@ index d0bd68f..60b0993 100644
 +              }
 +            }
 +          ]
-         },
-         {
--          "name": "slot",
++        },
++        {
 +          "name": "legacy_type",
-           "type": "u8"
-         },
-         {
--          "name": "stack_id",
--          "type": "zigzag32"
++          "type": "u8"
++        },
++        {
 +          "anon": true,
 +          "type": [
 +            "switch",
@@ -1787,12 +1876,16 @@ index d0bd68f..60b0993 100644
 +        {
 +          "name": "count",
 +          "type": "li16"
-+        },
-+        {
+         },
+         {
+-          "name": "slot",
+-          "type": "u8"
 +          "name": "block_runtime_id",
 +          "type": "varint"
-+        },
-+        {
+         },
+         {
+-          "name": "stack_id",
+-          "type": "zigzag32"
 +          "name": "extra",
 +          "type": [
 +            "encapsulated",
@@ -1804,7 +1897,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -2871,7 +2623,7 @@
+@@ -2871,7 +2646,7 @@
                      "type": [
                        "mapper",
                        {
@@ -1813,7 +1906,7 @@ index d0bd68f..60b0993 100644
                          "mappings": {
                            "0": "take",
                            "1": "place",
-@@ -2880,23 +2632,25 @@
+@@ -2880,23 +2655,25 @@
                            "4": "destroy",
                            "5": "consume",
                            "6": "create",
@@ -1852,7 +1945,7 @@ index d0bd68f..60b0993 100644
                    {
                      "anon": true,
                      "type": [
-@@ -2938,40 +2692,6 @@
+@@ -2938,40 +2715,6 @@
                                }
                              ]
                            ],
@@ -1893,7 +1986,7 @@ index d0bd68f..60b0993 100644
                            "swap": [
                              "container",
                              [
-@@ -3063,7 +2783,7 @@
+@@ -3063,7 +2806,7 @@
                                },
                                {
                                  "name": "network_id",
@@ -1902,7 +1995,7 @@ index d0bd68f..60b0993 100644
                                }
                              ]
                            ],
-@@ -3087,10 +2807,6 @@
+@@ -3087,10 +2830,6 @@
                                  "name": "recipe_network_id",
                                  "type": "varint"
                                },
@@ -1913,7 +2006,7 @@ index d0bd68f..60b0993 100644
                                {
                                  "name": "times_crafted",
                                  "type": "u8"
-@@ -3101,7 +2817,7 @@
+@@ -3101,7 +2840,7 @@
                                    "array",
                                    {
                                      "countType": "varint",
@@ -1922,7 +2015,7 @@ index d0bd68f..60b0993 100644
                                    }
                                  ]
                                }
-@@ -3138,7 +2854,7 @@
+@@ -3138,7 +2877,7 @@
                              [
                                {
                                  "name": "recipe_network_id",
@@ -1931,7 +2024,7 @@ index d0bd68f..60b0993 100644
                                },
                                {
                                  "name": "times_crafted",
-@@ -3146,7 +2862,7 @@
+@@ -3146,7 +2885,7 @@
                                },
                                {
                                  "name": "cost",
@@ -1940,7 +2033,7 @@ index d0bd68f..60b0993 100644
                                }
                              ]
                            ],
-@@ -3173,7 +2889,7 @@
+@@ -3173,7 +2912,7 @@
                                    "array",
                                    {
                                      "countType": "varint",
@@ -1949,15 +2042,11 @@ index d0bd68f..60b0993 100644
                                    }
                                  ]
                                },
-@@ -3254,17 +2970,26 @@
+@@ -3254,17 +2993,22 @@
                "type": "zigzag32"
              },
              {
 -              "anon": true,
-+              "name": "containers_presence",
-+              "type": "bool"
-+            },
-+            {
 +              "name": "containers",
                "type": [
 -                "switch",
@@ -1983,7 +2072,7 @@ index d0bd68f..60b0993 100644
                            "type": [
                              "array",
                              {
-@@ -3273,50 +2998,39 @@
+@@ -3273,50 +3017,35 @@
                                  "container",
                                  [
                                    {
@@ -1999,10 +2088,6 @@ index d0bd68f..60b0993 100644
 +                                  {
 +                                    "name": "count",
 +                                    "type": "u8"
-+                                  },
-+                                  {
-+                                    "name": "item_stack_id_presence",
-+                                    "type": "bool"
                                    },
                                    {
 -                                    "name": "slots",
@@ -2063,7 +2148,7 @@ index d0bd68f..60b0993 100644
                                    }
                                  ]
                                ]
-@@ -3326,7 +3040,7 @@
+@@ -3326,7 +3055,7 @@
                        ]
                      ]
                    }
@@ -2072,7 +2157,7 @@ index d0bd68f..60b0993 100644
                ]
              }
            ]
-@@ -3373,25 +3087,15 @@
+@@ -3373,25 +3102,15 @@
          {
            "name": "entity_unique_id",
            "type": [
@@ -2102,7 +2187,7 @@ index d0bd68f..60b0993 100644
            ]
          }
        ]
-@@ -3476,7 +3180,7 @@
+@@ -3476,7 +3195,7 @@
          },
          {
            "name": "color_abgr",
@@ -2111,7 +2196,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -4542,7 +4246,11 @@
+@@ -4542,7 +4261,11 @@
            "607": "BucketFillLandAnimal",
            "608": "BucketEmptyLandAnimal",
            "609": "GeyserContinuousEruptionStart",
@@ -2124,7 +2209,25 @@ index d0bd68f..60b0993 100644
          }
        }
      ],
-@@ -5272,13 +4980,7 @@
+@@ -4927,6 +4650,17 @@
+               }
+             ]
+           ]
++        },
++        {
++          "name": "apply_inherited_starting_rotation",
++          "type": "bool"
++        },
++        {
++          "name": "starting_rotation",
++          "type": [
++            "option",
++            "vec2f"
++          ]
+         }
+       ]
+     ],
+@@ -5272,13 +5006,7 @@
        [
          {
            "name": "cells",
@@ -2139,7 +2242,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "x_coordinates",
-@@ -5338,11 +5040,17 @@
+@@ -5338,11 +5066,17 @@
          },
          {
            "name": "experience_world_id",
@@ -2159,7 +2262,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "creator_id",
-@@ -5350,15 +5058,24 @@
+@@ -5350,15 +5084,24 @@
          },
          {
            "name": "target_id",
@@ -2187,7 +2290,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -5563,21 +5280,32 @@
+@@ -5563,21 +5306,34 @@
            "119": "realms_timeline_required",
            "120": "guest_withough_host",
            "121": "failed_to_join_experience",
@@ -2231,54 +2334,16 @@ index d0bd68f..60b0993 100644
 +          "144": "expired_token",
 +          "145": "host_accepts_no_type_of_auth",
 +          "146": "not_authenticated_fast_fail",
-+          "147": "editor_not_allowed"
++          "147": "editor_not_allowed",
++          "148": "missing_structure_data",
++          "149": "unsupported_transport"
          }
        }
      ],
-@@ -5673,45 +5401,120 @@
-       "container",
-       [
-         {
--          "name": "climate",
-+          "name": "climate",
-+          "type": [
-+            "option",
-+            "BiomeClimate"
-+          ]
-+        },
-+        {
-+          "name": "consolidated_features",
-+          "type": [
-+            "option",
-+            [
-+              "array",
-+              {
-+                "countType": "varint",
-+                "type": "BiomeConsolidatedFeature"
-+              }
-+            ]
-+          ]
-+        },
-+        {
-+          "name": "mountain_parameters",
-+          "type": [
-+            "option",
-+            "BiomeMountainParameters"
-+          ]
-+        },
-+        {
-+          "name": "surface_material_adjustments",
-+          "type": [
-+            "option",
-+            [
-+              "array",
-+              {
-+                "countType": "varint",
-+                "type": "BiomeElementData"
-+              }
-+            ]
-+          ]
-+        },
+@@ -5712,6 +5468,81 @@
+             ]
+           ]
+         },
 +        {
 +          "name": "overworld_rules",
 +          "type": [
@@ -2288,49 +2353,37 @@ index d0bd68f..60b0993 100644
 +        },
 +        {
 +          "name": "multi_noise_rules",
-           "type": [
-             "option",
--            "BiomeClimate"
++          "type": [
++            "option",
 +            "BiomeMultiNoiseRules"
-           ]
-         },
-         {
--          "name": "consolidated_features",
++          ]
++        },
++        {
 +          "name": "legacy_rules",
-           "type": [
-             "option",
-             [
-               "array",
-               {
-                 "countType": "varint",
--                "type": "BiomeConsolidatedFeature"
++          "type": [
++            "option",
++            [
++              "array",
++              {
++                "countType": "varint",
 +                "type": "BiomeConditionalTransformation"
-               }
-             ]
-           ]
-         },
-         {
--          "name": "mountain_parameters",
--          "type": [
--            "option",
--            "BiomeMountainParameters"
--          ]
--        },
--        {
--          "name": "surface_material_adjustments",
++              }
++            ]
++          ]
++        },
++        {
 +          "name": "replacements_data",
-           "type": [
-             "option",
-             [
-               "array",
-               {
-                 "countType": "varint",
--                "type": "BiomeElementData"
++          "type": [
++            "option",
++            [
++              "array",
++              {
++                "countType": "varint",
 +                "type": "BiomeReplacementData"
-               }
-             ]
-           ]
-         },
++              }
++            ]
++          ]
++        },
 +        {
 +          "name": "has_village_type",
 +          "type": "bool"
@@ -2369,7 +2422,7 @@ index d0bd68f..60b0993 100644
          {
            "name": "surface_materials",
            "type": [
-@@ -5750,63 +5553,82 @@
+@@ -5750,63 +5581,82 @@
            ]
          },
          {
@@ -2486,7 +2539,7 @@ index d0bd68f..60b0993 100644
      "BiomeClimate": [
        "container",
        [
-@@ -6964,6 +6786,14 @@
+@@ -6964,6 +6814,14 @@
          {
            "name": "ease_type",
            "type": "li32"
@@ -2501,7 +2554,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -6974,6 +6804,13 @@
+@@ -6974,6 +6832,13 @@
            "name": "name",
            "type": "string"
          },
@@ -2515,7 +2568,22 @@ index d0bd68f..60b0993 100644
          {
            "name": "dimension_id",
            "type": "zigzag32"
-@@ -7036,6 +6873,19 @@
+@@ -7012,6 +6877,14 @@
+         {
+           "name": "percent_of_total",
+           "type": "u8"
++        },
++        {
++          "name": "position",
++          "type": "vec3f"
++        },
++        {
++          "name": "dimension",
++          "type": "string"
+         }
+       ]
+     ],
+@@ -7036,6 +6909,19 @@
          }
        ]
      ],
@@ -2535,7 +2603,66 @@ index d0bd68f..60b0993 100644
      "WhiskerScopeDataSummary": [
        "container",
        [
-@@ -7982,20 +7832,32 @@
+@@ -7280,6 +7166,36 @@
+         }
+       ]
+     ],
++    "HeightMap": [
++      "array",
++      {
++        "count": 16,
++        "type": [
++          "array",
++          {
++            "countType": "varint",
++            "type": "i8"
++          }
++        ]
++      }
++    ],
++    "FurnaceOptions": [
++      "container",
++      [
++        {
++          "name": "left_furnace_tab",
++          "type": "zigzag32"
++        },
++        {
++          "name": "filtering",
++          "type": "bool"
++        },
++        {
++          "name": "layout",
++          "type": "zigzag32"
++        }
++      ]
++    ],
+     "mcpe_packet": [
+       "container",
+       [
+@@ -7533,7 +7449,9 @@
+                 "347": "server_presence_info",
+                 "348": "clientbound_update_sound_data",
+                 "349": "send_party_destination_cookie",
+-                "350": "party_destination_cookie_response"
++                "350": "party_destination_cookie_response",
++                "351": "set_player_furnace_options",
++                "352": "record_started"
+               }
+             }
+           ]
+@@ -7788,7 +7706,9 @@
+                 "server_presence_info": "packet_server_presence_info",
+                 "clientbound_update_sound_data": "packet_clientbound_update_sound_data",
+                 "send_party_destination_cookie": "packet_send_party_destination_cookie",
+-                "party_destination_cookie_response": "packet_party_destination_cookie_response"
++                "party_destination_cookie_response": "packet_party_destination_cookie_response",
++                "set_player_furnace_options": "packet_set_player_furnace_options",
++                "record_started": "packet_record_started"
+               }
+             }
+           ]
+@@ -7982,20 +7902,32 @@
            "type": [
              "mapper",
              {
@@ -2575,7 +2702,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -8341,7 +8203,7 @@
+@@ -8341,7 +8273,7 @@
          },
          {
            "name": "edu_offer",
@@ -2584,7 +2711,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "edu_features_enabled",
-@@ -8393,7 +8255,7 @@
+@@ -8393,7 +8325,7 @@
              "array",
              {
                "countType": "varint",
@@ -2593,7 +2720,7 @@ index d0bd68f..60b0993 100644
              }
            ]
          },
-@@ -8583,10 +8445,6 @@
+@@ -8583,10 +8515,6 @@
            "name": "server_controlled_sound",
            "type": "bool"
          },
@@ -2604,7 +2731,7 @@ index d0bd68f..60b0993 100644
          {
            "name": "has_server_join_info",
            "type": "bool"
-@@ -8662,7 +8520,7 @@
+@@ -8662,7 +8590,7 @@
          },
          {
            "name": "held_item",
@@ -2613,7 +2740,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "gamemode",
-@@ -8708,7 +8566,12 @@
+@@ -8708,7 +8636,12 @@
          },
          {
            "name": "device_os",
@@ -2627,7 +2754,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -8791,7 +8654,7 @@
+@@ -8791,7 +8724,7 @@
          },
          {
            "name": "item",
@@ -2636,7 +2763,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "position",
-@@ -8894,37 +8757,32 @@
+@@ -8894,37 +8827,32 @@
          {
            "name": "teleport",
            "type": [
@@ -2697,7 +2824,7 @@ index d0bd68f..60b0993 100644
            ]
          },
          {
-@@ -9470,7 +9328,7 @@
+@@ -9470,7 +9398,7 @@
          },
          {
            "name": "item",
@@ -2706,51 +2833,27 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "slot",
-@@ -9876,48 +9734,124 @@
-           "type": "varint"
+@@ -9886,12 +9814,12 @@
+           "name": "storage_item",
+           "type": [
+             "option",
+-            "ItemNew"
++            "ItemV4"
+           ]
          },
          {
--          "name": "container",
-+          "name": "container",
-+          "type": [
-+            "option",
-+            "FullContainerName"
-+          ]
-+        },
-+        {
-+          "name": "storage_item",
-+          "type": [
-+            "option",
-+            "ItemV4"
-+          ]
-+        },
-+        {
-+          "name": "item",
+           "name": "item",
+-          "type": "ItemNew"
 +          "type": "ItemV4"
-+        }
-+      ]
-+    ],
-+    "packet_container_set_data": [
-+      "container",
-+      [
-+        {
-+          "name": "window_id",
-+          "type": "WindowID"
-+        },
-+        {
-+          "name": "property",
-+          "type": "zigzag32"
-+        },
-+        {
-+          "name": "value",
-+          "type": "zigzag32"
-+        }
-+      ]
-+    ],
-+    "packet_crafting_data": [
-+      "container",
-+      [
-+        {
+         }
+       ]
+     ],
+@@ -9916,8 +9844,84 @@
+       "container",
+       [
+         {
+-          "name": "recipes",
+-          "type": "Recipes"
 +          "name": "shaped_recipes",
 +          "type": [
 +            "array",
@@ -2772,41 +2875,25 @@ index d0bd68f..60b0993 100644
 +        },
 +        {
 +          "name": "multi_recipes",
-           "type": [
--            "option",
--            "FullContainerName"
++          "type": [
 +            "array",
 +            {
 +              "countType": "varint",
 +              "type": "MultiRecipe"
 +            }
-           ]
-         },
-         {
--          "name": "storage_item",
++          ]
++        },
++        {
 +          "name": "shulker_box_recipes",
-           "type": [
--            "option",
--            "ItemNew"
++          "type": [
 +            "array",
 +            {
 +              "countType": "varint",
 +              "type": "ShapelessRecipe"
 +            }
-           ]
-         },
-         {
--          "name": "item",
--          "type": "ItemNew"
--        }
--      ]
--    ],
--    "packet_container_set_data": [
--      "container",
--      [
--        {
--          "name": "window_id",
--          "type": "WindowID"
++          ]
++        },
++        {
 +          "name": "shapeless_chemistry_recipes",
 +          "type": [
 +            "array",
@@ -2815,10 +2902,8 @@ index d0bd68f..60b0993 100644
 +              "type": "ShapelessRecipe"
 +            }
 +          ]
-         },
-         {
--          "name": "property",
--          "type": "zigzag32"
++        },
++        {
 +          "name": "shaped_chemistry_recipes",
 +          "type": [
 +            "array",
@@ -2827,16 +2912,8 @@ index d0bd68f..60b0993 100644
 +              "type": "ShapedRecipe"
 +            }
 +          ]
-         },
-         {
--          "name": "value",
--          "type": "zigzag32"
--        }
--      ]
--    ],
--    "packet_crafting_data": [
--      "container",
--      [
++        },
++        {
 +          "name": "smithing_transform_recipes",
 +          "type": [
 +            "array",
@@ -2846,9 +2923,7 @@ index d0bd68f..60b0993 100644
 +            }
 +          ]
 +        },
-         {
--          "name": "recipes",
--          "type": "Recipes"
++        {
 +          "name": "smithing_trim_recipes",
 +          "type": [
 +            "array",
@@ -2860,7 +2935,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "potion_type_recipes",
-@@ -9974,7 +9908,7 @@
+@@ -9974,7 +9978,7 @@
              "array",
              {
                "countType": "varint",
@@ -2869,7 +2944,7 @@ index d0bd68f..60b0993 100644
              }
            ]
          },
-@@ -9984,7 +9918,7 @@
+@@ -9984,7 +9988,7 @@
              "array",
              {
                "countType": "varint",
@@ -2878,7 +2953,7 @@ index d0bd68f..60b0993 100644
              }
            ]
          }
-@@ -10125,13 +10059,8 @@
+@@ -10125,13 +10129,8 @@
          {
            "name": "highest_subchunk_count",
            "type": [
@@ -2894,7 +2969,7 @@ index d0bd68f..60b0993 100644
            ]
          },
          {
-@@ -10141,26 +10070,10 @@
+@@ -10141,26 +10140,10 @@
          {
            "name": "blobs",
            "type": [
@@ -2924,10 +2999,16 @@ index d0bd68f..60b0993 100644
              }
            ]
          },
-@@ -10323,18 +10236,6 @@
-         }
-       ]
-     ],
+@@ -10317,23 +10300,11 @@
+           "name": "position",
+           "type": "vec3f"
+         },
+-        {
+-          "name": "count",
+-          "type": "zigzag32"
+-        }
+-      ]
+-    ],
 -    "UpdateMapFlags": [
 -      "bitflags",
 -      {
@@ -2939,11 +3020,15 @@ index d0bd68f..60b0993 100644
 -          "initialisation"
 -        ]
 -      }
--    ],
++        {
++          "name": "count",
++          "type": "zigzag32"
++        }
++      ]
+     ],
      "packet_clientbound_map_item_data": [
        "container",
-       [
-@@ -10342,10 +10243,6 @@
+@@ -10342,10 +10313,6 @@
            "name": "map_id",
            "type": "zigzag64"
          },
@@ -2954,7 +3039,7 @@ index d0bd68f..60b0993 100644
          {
            "name": "dimension",
            "type": "u8"
-@@ -10361,109 +10258,88 @@
+@@ -10361,109 +10328,88 @@
          {
            "name": "included_in",
            "type": [
@@ -3129,7 +3214,18 @@ index d0bd68f..60b0993 100644
            ]
          }
        ]
-@@ -11330,6 +11206,13 @@
+@@ -10556,10 +10502,6 @@
+           "name": "target_entity_id",
+           "type": "zigzag64"
+         },
+-        {
+-          "name": "player_id",
+-          "type": "zigzag64"
+-        },
+         {
+           "name": "type",
+           "type": [
+@@ -11330,6 +11272,13 @@
          {
            "name": "reload_world",
            "type": "bool"
@@ -3143,7 +3239,7 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -11352,6 +11235,10 @@
+@@ -11352,12 +11301,27 @@
            "name": "pitch",
            "type": "lf32"
          },
@@ -3151,10 +3247,27 @@ index d0bd68f..60b0993 100644
 +          "name": "loop_count",
 +          "type": "varint"
 +        },
++        {
++          "name": "bypass_listener_range_check",
++          "type": "bool"
++        },
          {
            "name": "handle",
            "type": [
-@@ -11477,7 +11364,7 @@
+             "option",
+             "lu64"
+           ]
++        },
++        {
++          "name": "playback_position_seconds",
++          "type": [
++            "option",
++            "lf32"
++          ]
+         }
+       ]
+     ],
+@@ -11477,7 +11441,7 @@
          },
          {
            "name": "redstone_save_mode",
@@ -3163,7 +3276,7 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "should_trigger",
-@@ -11545,10 +11432,6 @@
+@@ -11545,10 +11509,6 @@
          {
            "name": "old_skin_name",
            "type": "string"
@@ -3174,18 +3287,10 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -11915,28 +11798,15 @@
-           "type": "string"
-         },
-         {
--          "name": "sort_order",
--          "type": "zigzag32"
--        }
--      ]
--    ],
--    "packet_set_score": [
--      "container",
--      [
+@@ -11923,19 +11883,6 @@
+     "packet_set_score": [
+       "container",
+       [
 -        {
 -          "name": "action",
 -          "type": [
@@ -3199,20 +3304,10 @@ index d0bd68f..60b0993 100644
 -            }
 -          ]
 -        },
--        {
-+          "name": "sort_order",
-+          "type": "zigzag32"
-+        }
-+      ]
-+    ],
-+    "packet_set_score": [
-+      "container",
-+      [
-+        {
+         {
            "name": "entries",
            "type": [
-             "array",
-@@ -11946,69 +11816,82 @@
+@@ -11946,69 +11893,82 @@
                  "container",
                  [
                    {
@@ -3333,7 +3428,7 @@ index d0bd68f..60b0993 100644
                        }
                      ]
                    }
-@@ -12092,101 +11975,66 @@
+@@ -12092,101 +12052,70 @@
            "name": "runtime_entity_id",
            "type": "varint64"
          },
@@ -3398,8 +3493,8 @@ index d0bd68f..60b0993 100644
            ]
          },
          {
-           "name": "rot_y",
-           "type": [
+-          "name": "rot_y",
+-          "type": [
 -            "switch",
 -            {
 -              "compareTo": "flags.has_rot_y",
@@ -3407,6 +3502,8 @@ index d0bd68f..60b0993 100644
 -                "true": "u8"
 -              }
 -            }
++          "name": "rot_y",
++          "type": [
 +            "option",
 +            "u8"
            ]
@@ -3440,6 +3537,10 @@ index d0bd68f..60b0993 100644
 +        {
 +          "name": "force_completion",
 +          "type": "bool"
++        },
++        {
++          "name": "ticks",
++          "type": "varint64"
          }
        ]
      ],
@@ -3463,7 +3564,7 @@ index d0bd68f..60b0993 100644
      "packet_set_scoreboard_identity": [
        "container",
        [
-@@ -12219,14 +12067,8 @@
+@@ -12219,14 +12148,8 @@
                    {
                      "name": "entity_unique_id",
                      "type": [
@@ -3480,7 +3581,7 @@ index d0bd68f..60b0993 100644
                      ]
                    }
                  ]
-@@ -12867,10 +12709,6 @@
+@@ -12867,10 +12790,6 @@
      "packet_anvil_damage": [
        "container",
        [
@@ -3491,32 +3592,22 @@ index d0bd68f..60b0993 100644
          {
            "name": "position",
            "type": "BlockCoordinates"
-@@ -12973,7 +12811,16 @@
+@@ -12973,7 +12892,13 @@
          },
          {
            "name": "input_data",
 -          "type": "InputFlag"
 +          "type": [
-+            "option",
-+            [
-+              "array",
-+              {
-+                "countType": "varint",
-+                "type": "InputData"
-+              }
-+            ]
++            "array",
++            {
++              "countType": "varint",
++              "type": "InputData"
++            }
 +          ]
          },
          {
            "name": "input_mode",
-@@ -13038,170 +12885,104 @@
-           "name": "delta",
-           "type": "vec3f"
-         },
-+        {
-+          "name": "transaction_presence",
-+          "type": "bool"
-+        },
+@@ -13041,167 +12966,74 @@
          {
            "name": "transaction",
            "type": [
@@ -3539,6 +3630,10 @@ index d0bd68f..60b0993 100644
 -                      "name": "data",
 -                      "type": "TransactionUseItem"
 -                    }
+-                  ]
+-                ]
+-              }
+-            }
 +            "option",
 +            [
 +              "container",
@@ -3548,18 +3643,8 @@ index d0bd68f..60b0993 100644
 +                  "type": "TransactionLegacy"
 +                },
 +                {
-+                  "name": "actions_presence",
-+                  "type": "bool"
-+                },
-+                {
 +                  "name": "actions",
-+                  "type": [
-+                    "option",
-+                    "TransactionActions"
-                   ]
--                ]
--              }
--            }
++                  "type": "TransactionActions"
 +                },
 +                {
 +                  "name": "data",
@@ -3569,10 +3654,6 @@ index d0bd68f..60b0993 100644
 +            ]
            ]
          },
-+        {
-+          "name": "item_stack_request_presence",
-+          "type": "bool"
-+        },
          {
            "name": "item_stack_request",
            "type": [
@@ -3589,10 +3670,6 @@ index d0bd68f..60b0993 100644
          },
          {
 -          "anon": true,
-+          "name": "block_action_presence",
-+          "type": "bool"
-+        },
-+        {
 +          "name": "block_action",
            "type": [
 -            "switch",
@@ -3633,10 +3710,6 @@ index d0bd68f..60b0993 100644
          },
          {
 -          "name": "block_action",
-+          "name": "vehicle_rotation_presence",
-+          "type": "bool"
-+        },
-+        {
 +          "name": "vehicle_rotation",
            "type": [
 -            "switch",
@@ -3741,10 +3814,6 @@ index d0bd68f..60b0993 100644
 +          ]
 +        },
 +        {
-+          "name": "predicted_vehicle_presence",
-+          "type": "bool"
-+        },
-+        {
 +          "name": "predicted_vehicle",
 +          "type": [
 +            "option",
@@ -3752,7 +3821,7 @@ index d0bd68f..60b0993 100644
            ]
          },
          {
-@@ -13218,78 +12999,78 @@
+@@ -13218,78 +13050,78 @@
          }
        ]
      ],
@@ -3902,7 +3971,7 @@ index d0bd68f..60b0993 100644
        }
      ],
      "packet_creative_content": [
-@@ -13309,7 +13090,7 @@
+@@ -13309,7 +13141,7 @@
                      "type": [
                        "mapper",
                        {
@@ -3911,10 +3980,54 @@ index d0bd68f..60b0993 100644
                          "mappings": {
                            "0": "all",
                            "1": "construction",
-@@ -13979,97 +13760,10 @@
-         }
-       }
-     ],
+@@ -13935,141 +13767,54 @@
+           "name": "z",
+           "type": "zigzag32"
+         },
+-        {
+-          "name": "blocks",
+-          "type": [
+-            "array",
+-            {
+-              "countType": "varint",
+-              "type": "BlockUpdate"
+-            }
+-          ]
+-        },
+-        {
+-          "name": "extra",
+-          "type": [
+-            "array",
+-            {
+-              "countType": "varint",
+-              "type": "BlockUpdate"
+-            }
+-          ]
+-        }
+-      ]
+-    ],
+-    "packet_photo_info_request": [
+-      "container",
+-      [
+-        {
+-          "name": "photo_id",
+-          "type": "zigzag64"
+-        }
+-      ]
+-    ],
+-    "HeightMapDataType": [
+-      "mapper",
+-      {
+-        "type": "u8",
+-        "mappings": {
+-          "0": "no_data",
+-          "1": "has_data",
+-          "2": "too_high",
+-          "3": "too_low",
+-          "4": "all_copied"
+-        }
+-      }
+-    ],
 -    "SubChunkEntryWithoutCaching": [
 -      "array",
 -      {
@@ -3977,11 +4090,24 @@ index d0bd68f..60b0993 100644
 -                }
 -              ]
 -            },
--            {
++        {
++          "name": "blocks",
++          "type": [
++            "array",
+             {
 -              "name": "render_heightmap_type",
 -              "type": "HeightMapDataType"
 -            },
--            {
++              "countType": "varint",
++              "type": "BlockUpdate"
++            }
++          ]
++        },
++        {
++          "name": "extra",
++          "type": [
++            "array",
+             {
 -              "name": "render_heightmap",
 -              "type": [
 -                "switch",
@@ -3997,11 +4123,36 @@ index d0bd68f..60b0993 100644
 -                  }
 -                }
 -              ]
--            }
--          ]
++              "countType": "varint",
++              "type": "BlockUpdate"
+             }
+           ]
 -        ]
--      }
--    ],
++        }
++      ]
++    ],
++    "packet_photo_info_request": [
++      "container",
++      [
++        {
++          "name": "photo_id",
++          "type": "zigzag64"
++        }
++      ]
++    ],
++    "HeightMapDataType": [
++      "mapper",
++      {
++        "type": "u8",
++        "mappings": {
++          "0": "no_data",
++          "1": "has_data",
++          "2": "too_high",
++          "3": "too_low",
++          "4": "all_copied"
++        }
+       }
+     ],
 -    "SubChunkEntryWithCaching": [
 +    "SubChunkEntry": [
        "array",
@@ -4011,7 +4162,7 @@ index d0bd68f..60b0993 100644
          "type": [
            "container",
            [
-@@ -14106,14 +13800,8 @@
+@@ -14106,14 +13851,8 @@
              {
                "name": "payload",
                "type": [
@@ -4028,7 +4179,7 @@ index d0bd68f..60b0993 100644
                ]
              },
              {
-@@ -14123,18 +13811,13 @@
+@@ -14123,18 +13862,8 @@
              {
                "name": "heightmap",
                "type": [
@@ -4042,18 +4193,14 @@ index d0bd68f..60b0993 100644
 -                        "count": 256
 -                      }
 -                    ]
-+                "option",
-+                [
-+                  "buffer",
-+                  {
-+                    "count": 256
-                   }
+-                  }
 -                }
-+                ]
++                "option",
++                "HeightMap"
                ]
              },
              {
-@@ -14144,23 +13827,21 @@
+@@ -14144,23 +13873,16 @@
              {
                "name": "render_heightmap",
                "type": [
@@ -4067,14 +4214,10 @@ index d0bd68f..60b0993 100644
 -                        "count": 256
 -                      }
 -                    ]
-+                "option",
-+                [
-+                  "buffer",
-+                  {
-+                    "count": 256
-                   }
+-                  }
 -                }
-+                ]
++                "option",
++                "HeightMap"
                ]
              },
              {
@@ -4087,7 +4230,7 @@ index d0bd68f..60b0993 100644
              }
            ]
          ]
-@@ -14179,20 +13860,11 @@
+@@ -14179,20 +13901,11 @@
          },
          {
            "name": "origin",
@@ -4110,7 +4253,21 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
-@@ -14349,6 +14021,10 @@
+@@ -14322,11 +14035,11 @@
+                     "type": "string"
+                   },
+                   {
+-                    "name": "max_height",
++                    "name": "min_y",
+                     "type": "zigzag32"
+                   },
+                   {
+-                    "name": "min_height",
++                    "name": "height_range",
+                     "type": "zigzag32"
+                   },
+                   {
+@@ -14349,6 +14062,14 @@
                    {
                      "name": "dimension_type",
                      "type": "zigzag32"
@@ -4118,10 +4275,14 @@ index d0bd68f..60b0993 100644
 +                  {
 +                    "name": "pack_id",
 +                    "type": "uuid"
++                  },
++                  {
++                    "name": "default_biome",
++                    "type": "string"
                    }
                  ]
                ]
-@@ -15399,6 +15075,16 @@
+@@ -15399,6 +15120,16 @@
              }
            ]
          },
@@ -4138,7 +4299,7 @@ index d0bd68f..60b0993 100644
          {
            "name": "whisker_scopes",
            "type": [
-@@ -15938,7 +15624,7 @@
+@@ -15938,7 +15669,7 @@
            "type": [
              "mapper",
              {
@@ -4147,7 +4308,7 @@ index d0bd68f..60b0993 100644
                "mappings": {
                  "0": "clear_all",
                  "1": "remove",
-@@ -15948,6 +15634,10 @@
+@@ -15948,6 +15679,10 @@
              }
            ]
          },
@@ -4158,7 +4319,7 @@ index d0bd68f..60b0993 100644
          {
            "name": "value",
            "type": [
-@@ -15966,12 +15656,16 @@
+@@ -15966,12 +15701,16 @@
      "packet_player_location": [
        "container",
        [
@@ -4176,7 +4337,7 @@ index d0bd68f..60b0993 100644
                "mappings": {
                  "0": "coordinates",
                  "1": "type_hide"
-@@ -15980,8 +15674,8 @@
+@@ -15980,8 +15719,8 @@
            ]
          },
          {
@@ -4187,7 +4348,33 @@ index d0bd68f..60b0993 100644
          },
          {
            "name": "position",
-@@ -16740,8 +16434,129 @@
+@@ -16163,7 +15902,8 @@
+                     "mappings": {
+                       "0": "float",
+                       "1": "bool",
+-                      "2": "string"
++                      "2": "string",
++                      "3": "string_list"
+                     }
+                   }
+                 ]
+@@ -16177,7 +15917,14 @@
+                     "fields": {
+                       "float": "lf32",
+                       "bool": "bool",
+-                      "string": "string"
++                      "string": "string",
++                      "string_list": [
++                        "array",
++                        {
++                          "countType": "varint",
++                          "type": "string"
++                        }
++                      ]
+                     }
+                   }
+                 ]
+@@ -16740,8 +16487,129 @@
            "type": "ServerSoundHandle"
          },
          {
@@ -4319,3 +4506,48 @@ index d0bd68f..60b0993 100644
          }
        ]
      ],
+@@ -16774,6 +16642,43 @@
+           "type": "bool"
+         }
+       ]
++    ],
++    "packet_set_player_furnace_options": [
++      "container",
++      [
++        {
++          "name": "furnace_type",
++          "type": [
++            "mapper",
++            {
++              "type": "u8",
++              "mappings": {
++                "0": "none",
++                "1": "furnace",
++                "2": "blast_furnace",
++                "3": "smoker"
++              }
++            }
++          ]
++        },
++        {
++          "name": "furnace_options",
++          "type": "FurnaceOptions"
++        }
++      ]
++    ],
++    "packet_record_started": [
++      "container",
++      [
++        {
++          "name": "position",
++          "type": "BlockCoordinates"
++        },
++        {
++          "name": "handle",
++          "type": "lu64"
++        }
++      ]
+     ]
+   }
+ }
+\ No newline at end of file

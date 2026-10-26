@@ -22,13 +22,11 @@ import { applySelfMove } from './world.js'
 export const DEFAULT_TICK_INTERVAL_MS = 50
 export const DEFAULT_WALK_SPEED_PER_TICK = 4.317 / 20
 
-/** All input flags false/absent — every conditional sub-shape on the wire
- * (transaction, item_stack_request, the vehicle fields, block_action) is
- * gated by a switch on the matching input_data.* flag with no "false" case
- * and no explicit default in the pin; the COMPILED protodef switch (verified
- * in node_modules/protodef/src/datatypes/compiler-conditional.js) falls
- * through an unmatched case to `default: void` rather than throwing, so
- * omitting those fields entirely here is correct, not a guess.
+/** No input flags set — `input_data` is a varint-counted array of InputData
+ * names, so none is []. Every conditional sub-shape on the wire (transaction,
+ * item_stack_request, block_action, the vehicle fields) is an `option` in the
+ * pin, which writes a single `false` byte for an absent value, so omitting
+ * those fields entirely here is correct, not a guess.
  */
 export function buildPlayerAuthInputPacket({ position, rotation, moveVector, tick, delta }) {
   return {
@@ -39,7 +37,7 @@ export function buildPlayerAuthInputPacket({ position, rotation, moveVector, tic
       position,
       move_vector: moveVector,
       head_yaw: rotation.yaw,
-      input_data: {}, // bitflags: {} writes as all-zero — see writeBitflags in protodef/src/datatypes/utils.js
+      input_data: [],
       input_mode: 'unknown',
       play_mode: 'normal',
       interaction_model: 'classic',
