@@ -102,6 +102,177 @@ export function buildClientOptions({ join, transport, authflow, username, profil
   return { ...options, networkId: join.address }
 }
 
+/** Log a region flip between attempts, which nothing else in the log would show. */
+function noteRegionChange({ regionWatcher, region, log }) {
+  // A region flip has come before total connect failure, and nothing in
+  // the log said it had happened. Its own line, at warn, because the previous
+  // attempt's region is gone from the reader's eye by the time it matters.
+  const regionChange = regionWatcher?.note(region)
+  if (regionChange?.changed) {
+    log.warn(
+      'realm.region_changed',
+      `the Realm resolved to a different region than the previous attempt: ` +
+      `${regionChange.previous} → ${regionChange.current} — if connects keep failing from here, ` +
+      `the routing change is the first thing to suspect`
+    )
+  }
+}
+
+/** The idempotent end of a session: tear down once, close only if the library has not. */
+function createFinish({ session, client, probe, log, now, resolve }) {
+  return (endedBy, reason) => {
+    if (session.settled) return
+    session.settled = true
+    clearTimeout(session.connectTimer)
+    session.unsubscribeStop?.()
+    session.unsubscribeFault?.()
+    probe?.detach()
+    // Only close if the library has not already done so. A second close()
+    // throws a TypeError on the NetherNet path (see the header note).
+    if (!session.libraryClosed) {
+      try {
+        client.close()
+      } catch (err) {
+        log.warn('client.close.failed', String(err?.message ?? err))
+      }
+    }
+    resolve({
+      endedBy,
+      reason: reason ?? null,
+      connected: session.connectedAt !== null,
+      uptimeMs: session.connectedAt === null ? 0 : now() - session.connectedAt,
+      world: session.world,
+    })
+  }
+}
+
+/**
+ * The world-model observer. reduce() is a pure function that is documented to
+ * never throw (src/world.js) — a bad reducer must not be able to drop the
+ * connection — so no try/catch is needed at this wiring site itself. Attached
+ * per-session, per-name, because BedrockX has no generic `packet` event
+ * (client.js:207 emits by raw name only) and `close()` calls
+ * removeAllListeners(), so a listener attached outside runSession would
+ * silently stop firing after the first reconnect.
+ */
+function attachWorldReducer(client, session) {
+  for (const name of WORLD_PACKET_NAMES) {
+    client.on(name, (packet) => {
+      session.world = reduce(session.world, name, packet)
+    })
+  }
+}
+
+/**
+ * The opt-in packet recorder (src/recorder.js). Unlike the reducer, this
+ * performs real file I/O, so failures ARE caught here — a full disk must not
+ * be able to drop the connection either.
+ */
+function attachRecorder(client, recorder, log) {
+  for (const name of allPacketNames()) {
+    client.on(name, (packet) => {
+      try {
+        recorder.recordInbound(name, packet)
+      } catch (err) {
+        log.warn('recorder.inbound.failed', String(err?.message ?? err))
+      }
+    })
+  }
+  const rawWrite = client.write.bind(client)
+  client.write = (name, params) => {
+    try {
+      recorder.recordOutbound(name, params)
+    } catch (err) {
+      log.warn('recorder.outbound.failed', String(err?.message ?? err))
+    }
+    return rawWrite(name, params)
+  }
+}
+
+function sendChat({ client, session, username, log }, message) {
+  // chat is now part of the fixed action vocabulary — the packet
+  // shape lives in src/actions.js, not duplicated here.
+  const { name, params } = buildChatPacket({ message, username, xuid: session.selfXuid })
+  client.write(name, params)
+  log.info('chat.out', message)
+}
+
+/** The join sequence: Xbox session, own XUID, start_game, spawn. */
+function attachJoinHandlers({ client, session, username, log, now }) {
+  client.on('session', () => log.info('xbox.session', 'Xbox Live session established'))
+
+  // The server's roster is the reliable source of our own XUID, which
+  // outgoing chat must carry.
+  client.on('player_list', (packet) => {
+    for (const record of packet.records?.records ?? packet.records ?? []) {
+      if (stripFormatting(record.username ?? record.name).toLowerCase() === username.toLowerCase()) {
+        session.selfXuid = String(record.xbox_user_id ?? record.xuid ?? '')
+      }
+    }
+  })
+
+  client.on('start_game', (packet) => {
+    session.runtimeEntityId = packet.runtime_entity_id
+    const pos = packet.player_position
+    log.info('world.joined', pos ? `position x=${pos.x} y=${pos.y} z=${pos.z}` : 'no player_position')
+  })
+
+  client.on('play_status', (packet) => {
+    if (packet.status !== 'player_spawn') {
+      log.info('play_status', packet.status)
+      return
+    }
+    // BedrockX never sends this (upstream bedrock-protocol does). Without it
+    // the server never treats the player as fully joined and drops us.
+    client.write('set_local_player_as_initialized', { runtime_entity_id: session.runtimeEntityId })
+    session.connectedAt = now()
+    clearTimeout(session.connectTimer)
+    log.info('connected', 'spawned and initialized')
+    sendChat({ client, session, username, log }, `${username} has connected.`)
+  })
+}
+
+/** Everything that can end a session: the chat stop command, kick, close, error. */
+function attachEndHandlers({ client, session, finish, username, log }) {
+  client.on('text', (packet) => {
+    const from = stripFormatting(packet.source_name)
+    if (from && from.toLowerCase() !== username.toLowerCase()) {
+      log.info('chat.in', `${from}: ${packet.message}`)
+      // Chat kill-switch: inbound chat is untrusted input — including
+      // from a player who is not the owner — so this matches a narrow literal
+      // command only, never something an LLM interprets. finish() is
+      // idempotent, so this composes safely with a kick/close arriving
+      // around the same time.
+      if (isStopCommand(packet.message)) {
+        log.warn('chat.stop_command', `${from} sent the stop command — shutting down`)
+        finish('shutdown', 'stop command received via chat')
+      }
+    }
+  })
+
+  // kick fires first, then the library closes itself — one disconnect, two
+  // events. `finish` is idempotent, so this cannot double-reconnect.
+  client.on('kick', (packet) => {
+    const reason = packet?.reason ?? 'unknown'
+    session.libraryClosed = true // close() is about to run inside the library
+    // Name AND code: the enum name is what makes the kick diagnosable, the
+    // raw code is what stays comparable with an older log line.
+    log.warn('kicked', `${describeDisconnectReason(packet?.reason)}${packet?.message ? ` — ${packet.message}` : ''}`)
+    finish('kick', reason)
+  })
+
+  client.on('close', (reason) => {
+    session.libraryClosed = true
+    finish('close', reason == null ? null : String(reason))
+  })
+
+  // An error does NOT close the connection, so we end the session ourselves.
+  client.on('error', (err) => {
+    log.error('client.error', String(err?.message ?? err))
+    finish('error', String(err?.message ?? err))
+  })
+}
+
 /**
  * Run a single session: connect, stay connected, resolve when it ends.
  *
@@ -138,199 +309,55 @@ export async function runSession({
   const { realm, join, transport } = await resolveRealm({ api, realmId, context })
   const region = join.sessionRegionData?.regionName ?? null
   log.info('realm.resolved', `"${realm.name}" transport=${transport} region=${region ?? 'unknown'}`)
-
-  // A region flip has come before total connect failure, and nothing in
-  // the log said it had happened. Its own line, at warn, because the previous
-  // attempt's region is gone from the reader's eye by the time it matters.
-  const regionChange = regionWatcher?.note(region)
-  if (regionChange?.changed) {
-    log.warn(
-      'realm.region_changed',
-      `the Realm resolved to a different region than the previous attempt: ` +
-      `${regionChange.previous} → ${regionChange.current} — if connects keep failing from here, ` +
-      `the routing change is the first thing to suspect`
-    )
-  }
+  noteRegionChange({ regionWatcher, region, log })
 
   const client = createClient(
     buildClientOptions({ join, transport, authflow, username, profilesFolder, version })
   )
 
   return await new Promise((resolve) => {
-    let settled = false
-    let libraryClosed = false
-    let connectedAt = null
-    let runtimeEntityId = null
-    let selfXuid = ''
-    let connectTimer = null
-    let unsubscribeStop = null
-    let unsubscribeFault = null
-    let world = createWorldState()
-
-    const finish = (endedBy, reason) => {
-      if (settled) return
-      settled = true
-      clearTimeout(connectTimer)
-      unsubscribeStop?.()
-      unsubscribeFault?.()
-      probe?.detach()
-      // Only close if the library has not already done so. A second close()
-      // throws a TypeError on the NetherNet path (see the header note).
-      if (!libraryClosed) {
-        try {
-          client.close()
-        } catch (err) {
-          log.warn('client.close.failed', String(err?.message ?? err))
-        }
-      }
-      resolve({
-        endedBy,
-        reason: reason ?? null,
-        connected: connectedAt !== null,
-        uptimeMs: connectedAt === null ? 0 : now() - connectedAt,
-        world,
-      })
+    const session = {
+      settled: false,
+      libraryClosed: false,
+      connectedAt: null,
+      runtimeEntityId: null,
+      selfXuid: '',
+      connectTimer: null,
+      unsubscribeStop: null,
+      unsubscribeFault: null,
+      world: createWorldState(),
     }
+    const finish = createFinish({ session, client, probe, log, now, resolve })
 
-    // The handshake observer (src/probe.js). Attached first, so that its
-    // `connect_allowed` listener still runs after BedrockX's own — which is
+    // The order below is the order BedrockX calls the listeners in, so it is
+    // load-bearing. The handshake observer (src/probe.js) goes first, so that
+    // its `connect_allowed` listener still runs after BedrockX's own — which is
     // what makes the NetherNet internals reachable at exactly the right moment
     // (see the header note in src/probe.js).
     probe?.attach(client)
-
-    // The world-model observer. reduce() is a pure function that is
-    // documented to never throw (src/world.js) — a bad reducer must not be
-    // able to drop the connection — so no try/catch is needed at this
-    // wiring site itself. Attached per-session, per-name, because BedrockX
-    // has no generic `packet` event (client.js:207 emits by raw name only)
-    // and `close()` calls removeAllListeners(), so a listener attached
-    // outside runSession would silently stop firing after the first
-    // reconnect.
-    for (const name of WORLD_PACKET_NAMES) {
-      client.on(name, (packet) => {
-        world = reduce(world, name, packet)
-      })
-    }
-
-    // The opt-in packet recorder (src/recorder.js). Unlike the reducer, this
-    // performs real file I/O, so failures ARE caught here — a full disk must
-    // not be able to drop the connection either.
-    if (recorder) {
-      for (const name of allPacketNames()) {
-        client.on(name, (packet) => {
-          try {
-            recorder.recordInbound(name, packet)
-          } catch (err) {
-            log.warn('recorder.inbound.failed', String(err?.message ?? err))
-          }
-        })
-      }
-      const rawWrite = client.write.bind(client)
-      client.write = (name, params) => {
-        try {
-          recorder.recordOutbound(name, params)
-        } catch (err) {
-          log.warn('recorder.outbound.failed', String(err?.message ?? err))
-        }
-        return rawWrite(name, params)
-      }
-    }
+    attachWorldReducer(client, session)
+    if (recorder) attachRecorder(client, recorder, log)
 
     // Ctrl-C must end a *connected* session immediately. Checking a flag only
     // between attempts would make a healthy bot ignore SIGINT until it happened
     // to disconnect, which on a stable connection is never.
-    unsubscribeStop = stopSignal?.onStop?.(() => finish('shutdown', 'stop requested'))
+    session.unsubscribeStop = stopSignal?.onStop?.(() => finish('shutdown', 'stop requested'))
 
     // A process-level signalling fault ends the session THROUGH finish(), so
     // the client is closed and its timers cleared rather than left leaking.
-    unsubscribeFault = faultSignal?.onFault?.(() => finish('signalling_fault', 'signalling_fault'))
+    session.unsubscribeFault = faultSignal?.onFault?.(() => finish('signalling_fault', 'signalling_fault'))
 
-    connectTimer = setTimeout(() => {
-      if (connectedAt === null) {
+    session.connectTimer = setTimeout(() => {
+      if (session.connectedAt === null) {
         // Never a bare "no spawn within Nms" — that one message covered six
         // different failures and made the timeout undiagnosable. describe() names the
         // furthest stage the handshake reached and what stopping there implies.
         finish('connect_timeout', `no spawn within ${connectTimeoutMs}ms — ${probe?.describe() ?? 'no probe attached'}`)
       }
     }, connectTimeoutMs)
-    connectTimer.unref?.()
+    session.connectTimer.unref?.()
 
-    client.on('session', () => log.info('xbox.session', 'Xbox Live session established'))
-
-    // The server's roster is the reliable source of our own XUID, which
-    // outgoing chat must carry.
-    client.on('player_list', (packet) => {
-      for (const record of packet.records?.records ?? packet.records ?? []) {
-        if (stripFormatting(record.username ?? record.name).toLowerCase() === username.toLowerCase()) {
-          selfXuid = String(record.xbox_user_id ?? record.xuid ?? '')
-        }
-      }
-    })
-
-    client.on('start_game', (packet) => {
-      runtimeEntityId = packet.runtime_entity_id
-      const pos = packet.player_position
-      log.info('world.joined', pos ? `position x=${pos.x} y=${pos.y} z=${pos.z}` : 'no player_position')
-    })
-
-    client.on('play_status', (packet) => {
-      if (packet.status !== 'player_spawn') {
-        log.info('play_status', packet.status)
-        return
-      }
-      // BedrockX never sends this (upstream bedrock-protocol does). Without it
-      // the server never treats the player as fully joined and drops us.
-      client.write('set_local_player_as_initialized', { runtime_entity_id: runtimeEntityId })
-      connectedAt = now()
-      clearTimeout(connectTimer)
-      log.info('connected', 'spawned and initialized')
-      sendChat(`${username} has connected.`)
-    })
-
-    client.on('text', (packet) => {
-      const from = stripFormatting(packet.source_name)
-      if (from && from.toLowerCase() !== username.toLowerCase()) {
-        log.info('chat.in', `${from}: ${packet.message}`)
-        // Chat kill-switch: inbound chat is untrusted input — including
-        // from a player who is not the owner — so this matches a narrow literal
-        // command only, never something an LLM interprets. finish() is
-        // idempotent, so this composes safely with a kick/close arriving
-        // around the same time.
-        if (isStopCommand(packet.message)) {
-          log.warn('chat.stop_command', `${from} sent the stop command — shutting down`)
-          finish('shutdown', 'stop command received via chat')
-        }
-      }
-    })
-
-    // kick fires first, then the library closes itself — one disconnect, two
-    // events. `finish` is idempotent, so this cannot double-reconnect.
-    client.on('kick', (packet) => {
-      const reason = packet?.reason ?? 'unknown'
-      libraryClosed = true // close() is about to run inside the library
-      // Name AND code: the enum name is what makes the kick diagnosable, the
-      // raw code is what stays comparable with an older log line.
-      log.warn('kicked', `${describeDisconnectReason(packet?.reason)}${packet?.message ? ` — ${packet.message}` : ''}`)
-      finish('kick', reason)
-    })
-
-    client.on('close', (reason) => {
-      libraryClosed = true
-      finish('close', reason == null ? null : String(reason))
-    })
-
-    // An error does NOT close the connection, so we end the session ourselves.
-    client.on('error', (err) => {
-      log.error('client.error', String(err?.message ?? err))
-      finish('error', String(err?.message ?? err))
-    })
-
-    function sendChat(message) {
-      // chat is now part of the fixed action vocabulary — the packet
-      // shape lives in src/actions.js, not duplicated here.
-      const { name, params } = buildChatPacket({ message, username, xuid: selfXuid })
-      client.write(name, params)
-      log.info('chat.out', message)
-    }
+    attachJoinHandlers({ client, session, username, log, now })
+    attachEndHandlers({ client, session, finish, username, log })
   })
 }

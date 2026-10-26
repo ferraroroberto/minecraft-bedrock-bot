@@ -131,6 +131,182 @@ export const STAGE_DIAGNOSIS = Object.freeze({
     'packets were flowing but spawn never completed — suspect the login/resource-pack exchange, not the transport',
 })
 
+function markStage(probe, stage) {
+  const next = CONNECT_STAGES.indexOf(stage)
+  if (next > probe.stageIndex) probe.stageIndex = next
+}
+
+// A probe defect must never reach the connection. Same rule the recorder
+// wiring follows in src/connect.js.
+function createGuard(log) {
+  return (event, fn) =>
+    (...args) => {
+      try {
+        return fn(...args)
+      } catch (err) {
+        log.warn(`probe.${event}.failed`, String(err?.message ?? err))
+      }
+    }
+}
+
+function observeOutboundSignal(probe, signal) {
+  if (signal?.type === 'CONNECTREQUEST') {
+    markStage(probe, 'offer_sent')
+    probe.log.info('rtc.offer_sent', 'WebRTC offer sent to the Realm host')
+    return
+  }
+  if (signal?.type === 'CANDIDATEADD') {
+    probe.counts.candidatesOut += 1
+    // Only the first is worth a line; the rest are a count. Zero of these is
+    // itself the finding — it means no usable local network path was found.
+    if (probe.counts.candidatesOut === 1) probe.log.info('rtc.candidate_out', 'first local ICE candidate gathered')
+  }
+}
+
+function observeInboundSignal(probe, signal) {
+  switch (signal?.type) {
+    case 'CONNECTRESPONSE':
+      markStage(probe, 'answered')
+      probe.log.info('rtc.answered', 'the Realm host answered our offer')
+      break
+    case 'CANDIDATEADD':
+      probe.counts.candidatesIn += 1
+      if (probe.counts.candidatesIn === 1) probe.log.info('rtc.candidate_in', 'first remote ICE candidate received')
+      break
+    case 'CONNECTERROR':
+      probe.connectError = describeErrorCode(signal?.data)
+      probe.log.warn('rtc.connect_error', `the Realm host rejected our offer: ${probe.connectError}`)
+      break
+    default:
+      break
+  }
+}
+
+/**
+ * Wire the NetherNet internals. Reachable only from `connect_allowed` — see
+ * the header note on why that moment is both late enough and early enough.
+ */
+function attachTransport(probe) {
+  const { log, guard } = probe
+  const nethernet = probe.client?.connection?.nethernet
+  if (!nethernet) {
+    log.warn(
+      'probe.unavailable',
+      'client.connection.nethernet is missing — the pinned BedrockX shape changed, ' +
+        'so handshake breadcrumbs are unavailable for this attempt (update src/probe.js)'
+    )
+    return
+  }
+
+  // Outbound signals: wrap rather than replace. BedrockX assigns this at
+  // client.js:57, before connect_allowed, so `inner` is always the real
+  // writer by the time we get here.
+  const inner = nethernet.signalHandler
+  if (typeof inner === 'function') {
+    nethernet.signalHandler = (signal) => {
+      guard('signal_out', (s) => observeOutboundSignal(probe, s))(signal)
+      return inner(signal)
+    }
+  }
+
+  // Inbound signals: the signalling channel is a plain EventEmitter and
+  // BedrockX's own 'signal' listener (client.js:59) is unaffected by ours.
+  const signalling = probe.client?.nethernet?.signalling
+  signalling?.on?.('signal', guard('signal_in', (signal) => observeInboundSignal(probe, signal)))
+
+  nethernet.on?.(
+    'connected',
+    guard('connected', () => {
+      markStage(probe, 'transport_connected')
+      log.info('rtc.connected', 'WebRTC transport connected — waiting for the server to speak first')
+    })
+  )
+  nethernet.on?.(
+    'disconnect',
+    guard('disconnect', (_id, reason) => log.warn('rtc.disconnect', String(reason ?? 'unknown')))
+  )
+
+  attachIceObservers(probe, nethernet)
+}
+
+/**
+ * ICE/signalling state. BedrockX owns `onicecandidate` and
+ * `onconnectionstatechange` (nethernet/src/client.js:123,131) — these three are
+ * untouched by it, so assigning them clobbers nothing.
+ */
+function attachIceObservers(probe, nethernet) {
+  const { log, guard } = probe
+  const conn = nethernet.rtcConnection ?? null
+  probe.rtc = conn
+  if (!conn) {
+    log.warn('probe.unavailable', 'rtcConnection not yet created at connect_allowed — ICE states unavailable')
+    return
+  }
+  // Captured, not read off the mutable `probe.rtc`: closing the client fires
+  // one last state change AFTER detach(), and reading a nulled reference there
+  // logged a spurious probe failure on every single attempt.
+  conn.oniceconnectionstatechange = guard('ice_state', () => {
+    probe.iceState = conn.iceConnectionState
+    log.info('rtc.ice', probe.iceState)
+  })
+  conn.onicegatheringstatechange = guard('ice_gathering', () => {
+    probe.gatheringState = conn.iceGatheringState
+    log.info('rtc.ice_gathering', probe.gatheringState)
+  })
+}
+
+/**
+ * The first inbound packet of ANY kind. BedrockX has no generic `packet`
+ * event (client.js:207 emits by raw name), so this is one listener per name —
+ * all of them removed the moment the first packet lands, which is why the
+ * steady-state cost of this probe on a 450k-packet session is zero.
+ */
+function attachFirstPacket(probe, packetNames) {
+  const { log, guard } = probe
+  let names
+  try {
+    names = packetNames()
+  } catch (err) {
+    log.warn('probe.unavailable', `packet name table unreadable: ${String(err?.message ?? err)}`)
+    return
+  }
+  for (const name of names) {
+    const handler = guard('first_packet', () => {
+      probe.firstPacket = name
+      markStage(probe, 'receiving_packets')
+      log.info('packets.first', `first inbound packet: ${name}`)
+      // Self-removing: the question this answers ("did anything arrive at
+      // all?") is answered forever by the first packet.
+      detachPacketListeners(probe)
+    })
+    probe.packetListeners.set(name, handler)
+    probe.client.on(name, handler)
+  }
+}
+
+function detachPacketListeners(probe) {
+  for (const [name, handler] of probe.packetListeners) probe.client?.off?.(name, handler)
+  probe.packetListeners.clear()
+}
+
+/**
+ * A one-line, self-explaining account of where the handshake stopped — the
+ * payload that makes a `connect_timeout` diagnosable from the log alone.
+ */
+function describeProbe(probe) {
+  const stage = CONNECT_STAGES[probe.stageIndex]
+  const facts = [
+    `ice=${probe.iceState}`,
+    `gathering=${probe.gatheringState}`,
+    `candidates=${probe.counts.candidatesOut}out/${probe.counts.candidatesIn}in`,
+    `first_packet=${probe.firstPacket ?? 'none'}`,
+  ]
+  // An explicit rejection outranks the stage guess: if the host told us
+  // WHY, say that instead of inferring from where we stopped.
+  if (probe.connectError) return `rejected by the host: ${probe.connectError} [${facts.join(' ')}]`
+  return `reached ${stage} [${facts.join(' ')}] — ${STAGE_DIAGNOSIS[stage]}`
+}
+
 /**
  * Observe one connection attempt's handshake.
  *
@@ -140,213 +316,56 @@ export const STAGE_DIAGNOSIS = Object.freeze({
  * @returns {{ attach: (client: object) => void, detach: () => void, stage: string, describe: () => string }}
  */
 export function createConnectProbe({ log, packetNames = allPacketNames }) {
-  let stageIndex = 0
-  let client = null
-  let rtc = null
-  let iceState = 'unknown'
-  let gatheringState = 'unknown'
-  let firstPacket = null
-  let connectError = null
-  const counts = { candidatesOut: 0, candidatesIn: 0 }
-  /** name → listener, so every one of them can be removed on the first packet. */
-  const packetListeners = new Map()
-
-  const mark = (stage) => {
-    const next = CONNECT_STAGES.indexOf(stage)
-    if (next > stageIndex) stageIndex = next
+  const probe = {
+    log,
+    guard: createGuard(log),
+    stageIndex: 0,
+    client: null,
+    rtc: null,
+    iceState: 'unknown',
+    gatheringState: 'unknown',
+    firstPacket: null,
+    connectError: null,
+    counts: { candidatesOut: 0, candidatesIn: 0 },
+    /** name → listener, so every one of them can be removed on the first packet. */
+    packetListeners: new Map(),
   }
-
-  // A probe defect must never reach the connection. Same rule the recorder
-  // wiring follows in src/connect.js.
-  const guard =
-    (event, fn) =>
-    (...args) => {
-      try {
-        return fn(...args)
-      } catch (err) {
-        log.warn(`probe.${event}.failed`, String(err?.message ?? err))
-      }
-    }
-
-  function observeOutboundSignal(signal) {
-    if (signal?.type === 'CONNECTREQUEST') {
-      mark('offer_sent')
-      log.info('rtc.offer_sent', 'WebRTC offer sent to the Realm host')
-      return
-    }
-    if (signal?.type === 'CANDIDATEADD') {
-      counts.candidatesOut += 1
-      // Only the first is worth a line; the rest are a count. Zero of these is
-      // itself the finding — it means no usable local network path was found.
-      if (counts.candidatesOut === 1) log.info('rtc.candidate_out', 'first local ICE candidate gathered')
-    }
-  }
-
-  function observeInboundSignal(signal) {
-    switch (signal?.type) {
-      case 'CONNECTRESPONSE':
-        mark('answered')
-        log.info('rtc.answered', 'the Realm host answered our offer')
-        break
-      case 'CANDIDATEADD':
-        counts.candidatesIn += 1
-        if (counts.candidatesIn === 1) log.info('rtc.candidate_in', 'first remote ICE candidate received')
-        break
-      case 'CONNECTERROR':
-        connectError = describeErrorCode(signal?.data)
-        log.warn('rtc.connect_error', `the Realm host rejected our offer: ${connectError}`)
-        break
-      default:
-        break
-    }
-  }
-
-  /**
-   * Wire the NetherNet internals. Reachable only from `connect_allowed` — see
-   * the header note on why that moment is both late enough and early enough.
-   */
-  function attachTransport() {
-    const nethernet = client?.connection?.nethernet
-    if (!nethernet) {
-      log.warn(
-        'probe.unavailable',
-        'client.connection.nethernet is missing — the pinned BedrockX shape changed, ' +
-          'so handshake breadcrumbs are unavailable for this attempt (update src/probe.js)'
-      )
-      return
-    }
-
-    // Outbound signals: wrap rather than replace. BedrockX assigns this at
-    // client.js:57, before connect_allowed, so `inner` is always the real
-    // writer by the time we get here.
-    const inner = nethernet.signalHandler
-    if (typeof inner === 'function') {
-      nethernet.signalHandler = (signal) => {
-        guard('signal_out', observeOutboundSignal)(signal)
-        return inner(signal)
-      }
-    }
-
-    // Inbound signals: the signalling channel is a plain EventEmitter and
-    // BedrockX's own 'signal' listener (client.js:59) is unaffected by ours.
-    const signalling = client?.nethernet?.signalling
-    signalling?.on?.('signal', guard('signal_in', observeInboundSignal))
-
-    nethernet.on?.(
-      'connected',
-      guard('connected', () => {
-        mark('transport_connected')
-        log.info('rtc.connected', 'WebRTC transport connected — waiting for the server to speak first')
-      })
-    )
-    nethernet.on?.(
-      'disconnect',
-      guard('disconnect', (_id, reason) => log.warn('rtc.disconnect', String(reason ?? 'unknown')))
-    )
-
-    // ICE/signalling state. BedrockX owns `onicecandidate` and
-    // `onconnectionstatechange` (nethernet/src/client.js:123,131) — these three
-    // are untouched by it, so assigning them clobbers nothing.
-    const conn = nethernet.rtcConnection ?? null
-    rtc = conn
-    if (!conn) {
-      log.warn('probe.unavailable', 'rtcConnection not yet created at connect_allowed — ICE states unavailable')
-      return
-    }
-    // Captured, not read off the mutable `rtc`: closing the client fires one
-    // last state change AFTER detach(), and reading a nulled reference there
-    // logged a spurious probe failure on every single attempt.
-    conn.oniceconnectionstatechange = guard('ice_state', () => {
-      iceState = conn.iceConnectionState
-      log.info('rtc.ice', iceState)
-    })
-    conn.onicegatheringstatechange = guard('ice_gathering', () => {
-      gatheringState = conn.iceGatheringState
-      log.info('rtc.ice_gathering', gatheringState)
-    })
-  }
-
-  /**
-   * The first inbound packet of ANY kind. BedrockX has no generic `packet`
-   * event (client.js:207 emits by raw name), so this is one listener per name —
-   * all of them removed the moment the first packet lands, which is why the
-   * steady-state cost of this probe on a 450k-packet session is zero.
-   */
-  function attachFirstPacket() {
-    let names
-    try {
-      names = packetNames()
-    } catch (err) {
-      log.warn('probe.unavailable', `packet name table unreadable: ${String(err?.message ?? err)}`)
-      return
-    }
-    for (const name of names) {
-      const handler = guard('first_packet', () => {
-        firstPacket = name
-        mark('receiving_packets')
-        log.info('packets.first', `first inbound packet: ${name}`)
-        // Self-removing: the question this answers ("did anything arrive at
-        // all?") is answered forever by the first packet.
-        detachPacketListeners()
-      })
-      packetListeners.set(name, handler)
-      client.on(name, handler)
-    }
-  }
-
-  function detachPacketListeners() {
-    for (const [name, handler] of packetListeners) client?.off?.(name, handler)
-    packetListeners.clear()
-  }
+  const { guard } = probe
 
   return {
     /** Wire every observation point onto a freshly-created client. */
     attach(target) {
-      client = target
-      client.on('session', guard('session', () => mark('authenticated')))
-      client.on(
+      probe.client = target
+      target.on('session', guard('session', () => markStage(probe, 'authenticated')))
+      target.on(
         'connect_allowed',
         guard('connect_allowed', () => {
-          mark('signalling_ready')
+          markStage(probe, 'signalling_ready')
           log.info('signalling.ready', 'signalling websocket open and TURN credentials received')
-          attachTransport()
+          attachTransport(probe)
         })
       )
-      attachFirstPacket()
+      attachFirstPacket(probe, packetNames)
     },
 
     detach() {
-      detachPacketListeners()
+      detachPacketListeners(probe)
       // Unhook rather than drop the reference — the peer connection outlives
       // this call by one close-triggered state change.
-      if (rtc) {
-        rtc.oniceconnectionstatechange = null
-        rtc.onicegatheringstatechange = null
+      if (probe.rtc) {
+        probe.rtc.oniceconnectionstatechange = null
+        probe.rtc.onicegatheringstatechange = null
       }
-      rtc = null
+      probe.rtc = null
     },
 
     /** The furthest milestone reached, as a `CONNECT_STAGES` name. */
     get stage() {
-      return CONNECT_STAGES[stageIndex]
+      return CONNECT_STAGES[probe.stageIndex]
     },
 
-    /**
-     * A one-line, self-explaining account of where the handshake stopped —
-     * the payload that makes a `connect_timeout` diagnosable from the log alone.
-     */
     describe() {
-      const stage = CONNECT_STAGES[stageIndex]
-      const facts = [
-        `ice=${iceState}`,
-        `gathering=${gatheringState}`,
-        `candidates=${counts.candidatesOut}out/${counts.candidatesIn}in`,
-        `first_packet=${firstPacket ?? 'none'}`,
-      ]
-      // An explicit rejection outranks the stage guess: if the host told us
-      // WHY, say that instead of inferring from where we stopped.
-      if (connectError) return `rejected by the host: ${connectError} [${facts.join(' ')}]`
-      return `reached ${stage} [${facts.join(' ')}] — ${STAGE_DIAGNOSIS[stage]}`
+      return describeProbe(probe)
     },
   }
 }
