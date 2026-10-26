@@ -33,10 +33,17 @@ The pinned fork needs four fixes, all applied by `patch-package` on `postinstall
 |---|---|---|
 | Lazy `RakClient` require | `src/client.js` | macOS load crash — see below |
 | Sign the identity assertion with the **session** keypair | `src/nethernet/src/client.js`, `src/nethernet.js`, `src/client.js` | upstream signed with a fresh throwaway key, so the Realm refused every offer with `CONNECTERROR 37` |
-| 1.26.40 protocol definitions + 2 ported native types | `src/protocol/protocol.json`, `src/datatypes/compiler-minecraft.js` | the bundled definitions were 1.26.30-era; 1.26.40 packets decoded as `Read error` |
+| 1.26.51 protocol definitions + 2 ported native types | `src/protocol/protocol.json`, `src/datatypes/compiler-minecraft.js` | the bundled definitions were 1.26.30-era; newer packets decoded as `Read error` |
 | `response_status_name` on `resource_pack_client_response` | `src/createClient.js` | 1.26.40 added a required field; omitting it throws during serialization and the server kicks with `unexpected_packet` |
 
-The protocol.json portion is ~3,200 lines of vendored data taken verbatim from `minecraft-data`'s `bedrock/1.26.40/protocol.json`; the hand-written part of the patch is ~110 lines across five files. `test/version.test.js` asserts the patch is applied, so a missing or failed patch fails the gate rather than a live connect.
+The protocol.json portion is vendored data taken verbatim from `minecraft-data`'s `bedrock/<version>/protocol.json` for the version the bot announces (the newest one in the installed `minecraft-data`); the hand-written part of the patch is ~110 lines across five files. `test/version.test.js` asserts the patch is applied, so a missing or failed patch fails the gate rather than a live connect.
+
+When the Realm moves to a new game version:
+
+1. `npm install minecraft-data@^<release>` with the release that lists the new version first in `data/bedrock/common/protocolVersions.json`.
+2. Copy `node_modules/minecraft-data/minecraft-data/data/bedrock/<version>/protocol.json` over `node_modules/bedrockx/src/protocol/protocol.json`, then `npx patch-package bedrockx`. Only the protocol.json hunks of the patch should change.
+3. Serialize every packet the bot builds (`src/actions.js`, `src/movement.js`, `set_local_player_as_initialized`) against the new definitions. A field that changed shape fails here, not at the server.
+4. Move the version pin in `test/version.test.js` (its coupling test then checks the vendored file against the new version on its own), then `npm run spike` against the Realm.
 
 ### macOS: the BedrockX raknet patch
 

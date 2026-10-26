@@ -83,7 +83,8 @@ test('buildPlaceBlockPacket wraps an inventory_transaction item_use/click_block 
   assert.deepEqual(params.transaction.transaction_data.held_item, heldItem)
   assert.equal(params.transaction.transaction_data.block_runtime_id, 9)
   assert.equal(params.transaction.legacy.legacy_request_id, 0)
-  assert.equal(params.transaction.actions, null)
+  assert.equal(params.transaction.transaction_data.hand, 'main_hand')
+  assert.deepEqual(params.transaction.actions, [])
 })
 
 test('buildPlaceBlockPacket defaults held_item to the air item and refuses missing player position', () => {

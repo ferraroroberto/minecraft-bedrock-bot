@@ -28,7 +28,7 @@ test('buildPlayerAuthInputPacket carries position/rotation/tick/delta with all i
   assert.equal(params.head_yaw, 90)
   assert.equal(params.tick, 7)
   assert.deepEqual(params.delta, { x: 0, y: 0, z: 0.2 })
-  assert.deepEqual(params.input_data, {})
+  assert.deepEqual(params.input_data, [])
 })
 
 test('stepToward never overshoots and lands exactly on target within one step', () => {
