@@ -25,3 +25,7 @@ Thumbs.db
 .codex/
 # Launcher scratch (ephemeral images/logs written by the tray launcher)
 .launcher-tmp/
+
+# --- Python bytecode (the vendored ratchets run under Python) ---
+__pycache__/
+*.pyc
