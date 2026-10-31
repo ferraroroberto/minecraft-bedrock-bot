@@ -54,7 +54,9 @@ export async function supervise({ runSession, backoff, log, sleep, stopSignal = 
       continue
     }
 
-    if (stopSignal.stopped) {
+    // A chat stop command ends the session with `shutdown` but never flips the
+    // signal, so the session's own end reason has to count as a stop request too.
+    if (stopSignal.stopped || session.endedBy === 'shutdown') {
       log.info('shutdown', 'stop requested — exiting cleanly')
       return EXIT.OK
     }

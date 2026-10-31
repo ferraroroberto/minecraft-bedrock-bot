@@ -155,6 +155,21 @@ test('a stop signal exits cleanly without another attempt', async () => {
   assert.equal(h.attempts(), 0)
 })
 
+test('a session ended by the chat stop command exits cleanly without reconnecting', async () => {
+  // The chat kill-switch ends the session with endedBy 'shutdown' but never
+  // flips the shared stop signal, so the supervisor must act on the end reason.
+  // A second scripted session would be consumed if it reconnected.
+  const h = harness({
+    sessions: [
+      ended({ endedBy: 'shutdown', reason: 'stop command received via chat' }),
+      ended({ endedBy: 'close' }),
+    ],
+  })
+  assert.equal(await h.run(), EXIT.OK)
+  assert.equal(h.attempts(), 1)
+  assert.deepEqual(h.slept, [])
+})
+
 test('logs distinct events for a conflict versus a plain disconnect', async () => {
   const conflict = harness({
     sessions: [ended({ endedBy: 'kick', reason: 'server_id_conflict', connected: false })],
