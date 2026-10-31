@@ -7,7 +7,7 @@
 //      directory arg so discovery behaviour can't shift between Node majors.
 //   3. The vendored structure ratchet (scripts/structure_ratchet.py, stdlib
 //      Python): file/function/directory growth and the root layout. Needs a
-//      Python 3 on PATH or in .venv; only exit 0 passes, so exit 3 (NOT
+//      Python 3.11+ on PATH or in .venv; only exit 0 passes, so exit 3 (NOT
 //      CONFIRMED) and a missing Python both fail rather than skip.
 //   4. The vendored instruction ratchet (scripts/instruction_ratchet.py): the
 //      prompt-audit lint rules over CLAUDE.md and AGENTS.md. Same Python and
@@ -68,7 +68,7 @@ function run(args) {
 }
 
 /**
- * A Python 3 for the structure ratchet: the repo's .venv first, then the PATH
+ * A Python 3.11+ for the ratchets (they `import tomllib` at module load): the repo's .venv first, then the PATH
  * names the Windows tower and the Mac Mini each provide. Null when none runs.
  */
 function findPython() {
@@ -80,7 +80,7 @@ function findPython() {
   ]
   for (const candidate of candidates) {
     if (path.isAbsolute(candidate) && !existsSync(candidate)) continue
-    const probe = spawnSync(candidate, ['-c', 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)'], {
+    const probe = spawnSync(candidate, ['-c', 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'], {
       cwd: root,
       stdio: 'ignore',
     })
@@ -118,7 +118,7 @@ if (!run(['--test', '--test-timeout=15000', ...tests])) {
 
 const python = findPython()
 if (!python) {
-  console.error('[verify] FAILED — no Python 3 on PATH or in .venv; the ratchets cannot run')
+  console.error('[verify] FAILED — no Python 3.11+ on PATH or in .venv; the ratchets cannot run')
   process.exit(1)
 }
 // Every ratchet is vendored from project-scaffolding and run as its own check.
