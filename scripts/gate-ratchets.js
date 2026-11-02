@@ -10,6 +10,7 @@ export const RATCHETS = [
   'comment_ratchet',
   'dead_code_ratchet',
   'conventions_ratchet',
+  'runtime_write_ratchet',
 ]
 
 /** A ratchet passes only on exit 0; exit 3 (NOT CONFIRMED) fails like exit 1. */

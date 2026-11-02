@@ -29,6 +29,10 @@
 //  10. The vendored conventions ratchet (scripts/conventions_ratchet.py): the
 //      no-window and no-drive-path rules over tracked Python. Same Python and
 //      exit rule, and likewise nothing of its own to scan while the code is JS.
+//  11. The vendored runtime write ratchet (scripts/runtime_write_ratchet.py): a
+//      Python write target resolving under a code folder. Same Python and exit
+//      rule; its --snapshot/--probe pair also brackets stage 2, failing on any
+//      untracked or ignored file the tests leave under a code folder.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no
@@ -39,6 +43,7 @@
 // still reach the Realm; that needs a live `npm run spike`. See CLAUDE.md → "This repository".
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RATCHETS, ratchetPassed } from './gate-ratchets.js'
@@ -108,6 +113,31 @@ if (!tests.length) {
   process.exit(1)
 }
 
+const python = findPython()
+if (!python) {
+  console.error('[verify] FAILED — no Python 3.11+ on PATH or in .venv; the ratchets cannot run')
+  process.exit(1)
+}
+
+/** One half of the runtime write probe; exits the gate unless it passes. */
+function runtimeWriteProbe(flag, snapshot) {
+  const probe = spawnSync(python, ['scripts/runtime_write_ratchet.py', flag, snapshot], {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, PYTHONUTF8: '1' },
+  })
+  if (probe.error) throw probe.error
+  if (!ratchetPassed(probe.status)) {
+    console.error(`[verify] FAILED — runtime write probe ${flag} exited ${probe.status}`)
+    process.exit(1)
+  }
+}
+
+// What already sits untracked or ignored under the code folders, so the probe
+// after the tests names only what they wrote.
+const runtimeSnapshot = path.join(os.tmpdir(), `runtime-write-snapshot-${process.pid}.json`)
+runtimeWriteProbe('--snapshot', runtimeSnapshot)
+
 // --test-timeout so a test that hangs (an async session that never settles)
 // fails loudly instead of wedging the gate until someone kills it.
 console.log(`[verify] stage 2/${RATCHETS.length + 2} — node --test over ${tests.length} file(s)`)
@@ -115,12 +145,7 @@ if (!run(['--test', '--test-timeout=15000', ...tests])) {
   console.error('[verify] FAILED — tests did not pass')
   process.exit(1)
 }
-
-const python = findPython()
-if (!python) {
-  console.error('[verify] FAILED — no Python 3.11+ on PATH or in .venv; the ratchets cannot run')
-  process.exit(1)
-}
+runtimeWriteProbe('--probe', runtimeSnapshot)
 // Every ratchet is vendored from project-scaffolding and run as its own check.
 const ratchets = RATCHETS.map((name, i) => [`stage ${i + 3}/${RATCHETS.length + 2} — ${name.replace(/_/g, ' ')}`, name])
 for (const [label, name] of ratchets) {
