@@ -13,6 +13,7 @@ description = "Headless Bedrock Realm bot driven by an LLM decision loop on the 
 # in `description` instead. Revisit only if the fleet-config schema ever grows
 # multi-edge tags; don't silently swap the Realm out for the hub.
 tag         = ["→", "Minecraft Realm"]
+depends_on  = ["local-llm-hub"]
 shape       = "node"
 # `patches/` holds the patch-package patch that npm's postinstall applies; the
 # `node` preset has no folder for it (docs/layout.md).
