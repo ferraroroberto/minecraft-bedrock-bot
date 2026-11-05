@@ -2,5 +2,10 @@
   "version": 1,
   "band": {"files": 0, "functions": 2},
   "root_extras": ["patches"],
+  "shape_contract": {
+    "root_files": [],
+    "redundant": [],
+    "folder_types": {}
+  },
   "entries": []
 }
