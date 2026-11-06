@@ -10,7 +10,7 @@ minecraft-bedrock-bot/
 ├── patches/    # patch-package patches applied by npm's postinstall
 ├── docs/       # per-feature reference and protocol gotchas
 ├── package.json
-└── .fleet.toml # shape, extra_roots, vendored components and the ratchet opt-in
+└── .fleet.toml # shape, vendored components and the ratchet opt-in
 ```
 
 ## `src/`
@@ -37,9 +37,9 @@ A new module goes in `src/` with a name that states what it does, and its test g
 
 One reference file per feature or protocol topic, indexed from the README.
 
-## Declared exceptions
+## `patches/`
 
-- **`patches/`** (`extra_roots`): holds `bedrockx+<version>.patch`, which patch-package applies to the pinned BedrockX dependency on `npm install`. The patch is required on macOS, so it ships in the repo; the `node` shape has no folder for patches.
+Holds `bedrockx+<version>.patch`, which patch-package applies to the pinned BedrockX dependency on `npm install`. The patch is required on macOS, so it ships in the repo. The `node` shape has this folder and takes `.patch` files in it only.
 
 ## The ratchet baseline
 
