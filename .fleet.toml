@@ -65,6 +65,9 @@ baseline = ".instruction-ratchet-baseline.json"
 # above, so loopback ports in the docs are not checked. Exit 3 (git unusable, a
 # non-UTF-8 doc, an unclosed fence) fails the gate. Needs Python 3.11+ (tomllib).
 # Procedure: project-scaffolding docs/doc-refs-ratchet.md.
+ci_expectations = true
+agents_pointer = true
+repeated_text_words = 12
 [doc_refs_ratchet]
 enabled  = true
 baseline = ".doc-refs-ratchet-baseline.json"
@@ -124,6 +127,8 @@ baseline = ".comment-ratchet-baseline.json"
 # guards any Python helper added later. Exit 3 (git unusable, an unparseable .py
 # file) fails the gate. Needs Python 3.11+ (tomllib). Procedure:
 # project-scaffolding docs/dead-code-ratchet.md.
+docstrings = true
+history_phrases = true
 [dead_code_ratchet]
 enabled  = true
 baseline = ".dead-code-ratchet-baseline.json"
