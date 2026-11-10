@@ -184,3 +184,28 @@ test('logs distinct events for a conflict versus a plain disconnect', async () =
   assert.ok(conflict.lines.some((l) => l.includes('session.conflict')))
   assert.ok(!plain.lines.some((l) => l.includes('session.conflict')))
 })
+
+test('a conflict kick that arrives as a raw code still waits the 30s conflict ladder', async () => {
+  // The supervisor used to compare the reason to the name only, so the same kick
+  // spelled 44 fell onto the 5s disconnect ladder and was kicked again.
+  const h = harness({
+    sessions: [
+      ended({ endedBy: 'kick', reason: 44, connected: false }),
+      ended({ endedBy: 'kick', reason: '44', connected: false }),
+    ],
+    backoffOptions: { maxConsecutiveFailures: 2 },
+  })
+  await h.run()
+  assert.ok(h.slept[0] >= 30_000, `first retry was ${h.slept[0]}ms, must be >= 30000`)
+  assert.ok(h.lines.some((l) => l.includes('session.conflict')))
+})
+
+test('a kick with no usable reason is logged as unknown and retried on the disconnect ladder', async () => {
+  const h = harness({
+    sessions: [ended({ endedBy: 'kick', reason: 'unknown', connected: false })],
+    backoffOptions: { maxConsecutiveFailures: 1 },
+  })
+  await h.run()
+  assert.ok(h.lines.some((l) => l.includes('session.unknown')))
+  assert.ok(!h.lines.some((l) => l.includes('session.conflict')))
+})

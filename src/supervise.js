@@ -6,6 +6,7 @@
 // per Xbox account, and connecting from a test would kick the real bot).
 import { classifyRealmsError } from './errors.js'
 import { formatDuration } from './log.js'
+import { classifySessionEnd, SESSION_END } from './session-end.js'
 
 /** Exit codes, so a later `launchd` KeepAlive wrapper can behave sensibly with no further changes. */
 export const EXIT = {
@@ -54,20 +55,13 @@ export async function supervise({ runSession, backoff, log, sleep, stopSignal = 
       continue
     }
 
-    // A chat stop command ends the session with `shutdown` but never flips the
-    // signal, so the session's own end reason has to count as a stop request too.
-    if (stopSignal.stopped || session.endedBy === 'shutdown') {
+    const end = classifySessionEnd(session, { stopRequested: stopSignal.stopped })
+    if (end.state === SESSION_END.STOP_REQUESTED) {
       log.info('shutdown', 'stop requested — exiting cleanly')
       return EXIT.OK
     }
 
-    // A session that ended. `server_id_conflict` is its own condition: the
-    // server is still holding our previous session and a short retry is
-    // guaranteed to be kicked again (measured: 8s kicked, 30s clean).
-    const conflict = session.reason === 'server_id_conflict'
-    const kind = conflict ? 'server_id_conflict' : 'disconnect'
-
-    if (session.connected) {
+    if (end.mayResetStreak) {
       const stable = backoff.recordUptime(session.uptimeMs)
       log.warn(
         'disconnected',
@@ -78,15 +72,20 @@ export async function supervise({ runSession, backoff, log, sleep, stopSignal = 
       log.warn('connect.failed', `${session.endedBy}${session.reason ? ` (${session.reason})` : ''}`)
     }
 
-    if (conflict) {
+    // `conflict` is its own condition: the server is still holding our previous
+    // session and a short retry is guaranteed to be kicked again (measured: 8s
+    // kicked, 30s clean). `unknown` is logged apart so it is never mistaken for one.
+    if (end.state === SESSION_END.CONFLICT) {
       log.warn(
         'session.conflict',
         'another session holds this Xbox account — the Minecraft client signed in as the bot, ' +
         'or a bot on the other machine. Waiting out the server-side session release.'
       )
+    } else if (end.state === SESSION_END.UNKNOWN) {
+      log.warn('session.unknown', `${end.why} — retrying on the ordinary disconnect ladder`)
     }
 
-    const gaveUp = await backOffOrGiveUp({ kind, backoff, log, sleep, stopSignal })
+    const gaveUp = await backOffOrGiveUp({ kind: end.kind, backoff, log, sleep, stopSignal })
     if (gaveUp !== null) return gaveUp
   }
 }
