@@ -457,8 +457,11 @@ def _regex_may_start(prev: Tok | None) -> bool:
     return prev.kind == "punct" and prev.text not in (")", "]", "}")
 
 
-def tokenize_js(text: str) -> list[Tok]:
+def tokenize_js(text: str, comments: list[tuple[int, int, str]] | None = None) -> list[Tok]:
     """The tokens of one JS/TS source; raises `ValueError` on an unterminated comment or template.
+
+    Comments are not tokens; a caller that needs them passes a list and gets `(first line, last line, text)`
+    for each, in source order.
 
     A template literal's `${...}` code is tokenized in place; the literal itself is one `str` token
     when it has no `${}`, else a `tmpl` token (it is never a fixed state string).
@@ -496,11 +499,16 @@ def tokenize_js(text: str) -> list[Tok]:
         elif c in " \t\r\f\v﻿":
             i += 1
         elif text.startswith("//", i):
-            i = text.find("\n", i) if "\n" in text[i:] else n
+            end = text.find("\n", i) if "\n" in text[i:] else n
+            if comments is not None:
+                comments.append((line, line, text[i:end]))
+            i = end
         elif text.startswith("/*", i):
             end = text.find("*/", i + 2)
             if end < 0:
                 raise ValueError(f"unterminated block comment from line {line}")
+            if comments is not None:
+                comments.append((line, line + text.count("\n", i, end), text[i:end + 2]))
             line += text.count("\n", i, end)
             i = end + 2
         elif c in "'\"":
@@ -759,10 +767,13 @@ class _JsReader:
         return j + 1
 
 
-def js_parse(source: bytes | str) -> tuple[list[Tok], dict[int, int]]:
-    """Tokens and bracket pairs of one JS/TS module; raises `ValueError` when it cannot be read."""
+def js_parse(source: bytes | str, comments: list[tuple[int, int, str]] | None = None) -> tuple[list[Tok], dict[int, int]]:
+    """Tokens and bracket pairs of one JS/TS module; raises `ValueError` when it cannot be read.
+
+    `comments`, when given, is filled as `tokenize_js` documents.
+    """
     text = source.decode("utf-8", "replace") if isinstance(source, bytes) else source
-    toks = tokenize_js(text)
+    toks = tokenize_js(text, comments)
     return toks, _js_pairs(toks)
 
 
