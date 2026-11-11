@@ -195,6 +195,7 @@ export async function runGoal({
 
     if (verify()) return finish(`goal verified from world state after ${steps} step(s)`)
 
+    // state-literal-exempt: a token of the model's JSON reply contract, validated against the closed REPLY_STATUSES set in src/model-reply.js; it is the model's claim, not a lifecycle this process holds
     if (reply.status === 'done') {
       falseSuccessClaims += 1
       // THE failure mode this whole layer exists to catch: a model reporting
