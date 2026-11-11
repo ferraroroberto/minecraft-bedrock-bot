@@ -1,6 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "src/decision-loop.js", "counts": {"state-literal": 1}}
-  ]
+  "entries": []
 }
