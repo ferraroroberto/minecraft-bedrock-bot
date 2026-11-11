@@ -24,9 +24,9 @@ The other half of the vocabulary is a failure before any client exists (the Real
 
 Only `src/supervise.js` today. A new reader of a session result calls `classifySessionEnd` and branches on `SESSION_END`; it does not compare `endedBy` or `reason`. `test/session-end.test.js` has one row per reachable result, including the impossible combinations, and checks that every declared state is produced.
 
-## Not declared in `.fleet.toml`
+## Declared in `.fleet.toml`
 
-project-scaffolding's `[[state_machines]]` entry names a `module` that its ratchet parses as a Python AST (`scripts/conventions_state.py`), so a JavaScript module cannot be declared yet. This machine is therefore documented here and covered by the table test, with no `[[state_machines]]` entry.
+The machine is the `session-end` `[[state_machines]]` entry: module `src/session-end.js`, type `SESSION_END`, derive function `classifySessionEnd`. The conventions ratchet's state rules stop reporting that module and keep reporting any other module that re-spells the five states or writes their flag. The proof marker `state-machine-proof: session-end` sits on the closed-set test in `test/session-end.test.js`.
 
 ## Out of scope
 
