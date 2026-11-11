@@ -145,13 +145,16 @@ baseline = ".dead-code-ratchet-baseline.json"
 #                  spawn without CREATE_NO_WINDOW pops a console there.
 #   no-drive-path  kept: the repo runs on the Windows tower and the Mac Mini, so a
 #                  hardcoded drive-letter path is wrong on one of them.
+#   subprocess-timeout  kept: a blocking subprocess call with no timeout= can hang the
+#                  gate forever; a deliberately unbounded child takes a
+#                  `# subprocess-timeout-exempt: <reason>` marker.
 #   logging-not-print  left off: its default scope is app/ and src/, which hold no
 #                  Python here, and a Python helper in scripts/ is a CLI by nature.
 #   secret-compare, git-wrapper  left off: the repo has neither helper.
 [conventions_ratchet]
 enabled  = true
 baseline = ".conventions-ratchet-baseline.json"
-rules    = ["no-window", "no-drive-path", "state-literal", "state-set-repeat", "state-write"]
+rules    = ["no-window", "no-drive-path", "subprocess-timeout", "state-literal", "state-set-repeat", "state-write"]
 
 # [[state_machines]] -- the one machine this repo declares. src/session-end.js owns
 # what a finished Realm session means; classifySessionEnd is the only code that
