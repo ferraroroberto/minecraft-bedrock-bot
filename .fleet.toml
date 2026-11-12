@@ -137,9 +137,10 @@ baseline = ".dead-code-ratchet-baseline.json"
 # [conventions_ratchet] -- the scaffold's baseline-and-ratchet stage for fleet
 # conventions held as Python `ast` rules. `npm run verify` runs
 # scripts/conventions_ratchet.py and fails when a tracked Python file gains a hit
-# beyond .conventions-ratchet-baseline.json. It reads Python only, and this repo's
-# code is JavaScript, so the rules below guard a Python helper added later. Exit 3
-# (git unusable, an unparseable .py file) fails the gate. Needs Python 3.11+
+# beyond .conventions-ratchet-baseline.json. The state rules scan the JavaScript
+# modules in src/ against the declared session-end machine; the remaining rules
+# read Python and guard a helper added later. Exit 3 (git unusable, an
+# unparseable .py file) fails the gate. Needs Python 3.11+
 # (tomllib). Procedure: project-scaffolding docs/conventions-ratchet.md.
 #   no-window      kept: the Windows tower spawns the gate's Python helpers, and a
 #                  spawn without CREATE_NO_WINDOW pops a console there.
