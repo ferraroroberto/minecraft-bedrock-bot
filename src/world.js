@@ -21,10 +21,8 @@
 //   - `set_health` is NOT handled here. It round-trips fine but is documented
 //     as unused by the vanilla server; health (and hunger) travel via
 //     `update_attributes`'s `minecraft:health` / `minecraft:player.hunger`
-//     attribute entries instead (confirmed against the same PMMP source).
-//     Handling both speculatively, as an earlier draft of this plan did,
-//     would have been exactly the kind of unverified assumption this file
-//     exists to avoid.
+//     attribute entries instead (confirmed against the same PMMP source), so
+//     `set_health` is not handled.
 //
 // `add_entity`'s `unique_id` (zigzag64) and `add_player`'s `unique_id` (li64)
 // are different wire encodings for the same *kind* of value, and protodef's
