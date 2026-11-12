@@ -33,6 +33,8 @@ runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "4a06c
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_resolve.py" }
 instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_frontmatter.py" }
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
+conventions_readers = { src = "scripts/conventions_readers.py", sha = "ab06ad732591d4edab00774ee93a455189c14577", dest = "scripts/conventions_readers.py" }
+conventions_state = { src = "scripts/conventions_state.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/conventions_state.py" }
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. `npm run
 # verify` runs scripts/structure_ratchet.py and fails when a new file passes 1,000
@@ -42,8 +44,6 @@ instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac32
 # baselined at today's size, never excluded. Exit 3 (git unusable, an unparseable
 # file, an unknown shape) fails the gate. Procedure: project-scaffolding
 # docs/structure-ratchet.md.
-conventions_readers = { src = "scripts/conventions_readers.py", sha = "ab06ad732591d4edab00774ee93a455189c14577", dest = "scripts/conventions_readers.py" }
-conventions_state = { src = "scripts/conventions_state.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/conventions_state.py" }
 [structure_ratchet]
 enabled  = true
 baseline = ".structure-ratchet-baseline.json"
@@ -58,6 +58,9 @@ baseline = ".structure-ratchet-baseline.json"
 [instruction_ratchet]
 enabled  = true
 baseline = ".instruction-ratchet-baseline.json"
+ci_expectations = true
+agents_pointer = true
+repeated_text_words = 12
 
 # [doc_refs_ratchet] -- the scaffold's baseline-and-ratchet stage for stale doc
 # references. `npm run verify` runs scripts/doc_refs_ratchet.py and fails when
@@ -66,9 +69,6 @@ baseline = ".instruction-ratchet-baseline.json"
 # above, so loopback ports in the docs are not checked. Exit 3 (git unusable, a
 # non-UTF-8 doc, an unclosed fence) fails the gate. Needs Python 3.11+ (tomllib).
 # Procedure: project-scaffolding docs/doc-refs-ratchet.md.
-ci_expectations = true
-agents_pointer = true
-repeated_text_words = 12
 [doc_refs_ratchet]
 enabled  = true
 baseline = ".doc-refs-ratchet-baseline.json"
@@ -119,6 +119,8 @@ baseline = ".docs-ratchet-baseline.json"
 [comment_ratchet]
 enabled  = true
 baseline = ".comment-ratchet-baseline.json"
+docstrings = true
+history_phrases = true
 
 # [dead_code_ratchet] -- the scaffold's baseline-and-ratchet stage for definitions
 # nothing references. `npm run verify` runs scripts/dead_code_ratchet.py and fails
@@ -128,8 +130,6 @@ baseline = ".comment-ratchet-baseline.json"
 # guards any Python helper added later. Exit 3 (git unusable, an unparseable .py
 # file) fails the gate. Needs Python 3.11+ (tomllib). Procedure:
 # project-scaffolding docs/dead-code-ratchet.md.
-docstrings = true
-history_phrases = true
 [dead_code_ratchet]
 enabled  = true
 baseline = ".dead-code-ratchet-baseline.json"
