@@ -1,8 +1,7 @@
 // One connection attempt, start to finish.
 //
-// The spike did this with top-level `await`, which is unreconnectable by
-// construction — hence this function. It resolves when the session ENDS, not
-// when it connects, so the supervisor can simply loop on it.
+// `runSession` resolves when the session ENDS, not when it connects, so the
+// supervisor can simply loop on it to reconnect.
 //
 // Three BedrockX behaviours this is built around, all verified in source
 // (node_modules/bedrockx/src/client.js) rather than assumed:
@@ -190,8 +189,7 @@ function attachRecorder(client, recorder, log) {
 }
 
 function sendChat({ client, session, username, log }, message) {
-  // chat is now part of the fixed action vocabulary — the packet
-  // shape lives in src/actions.js, not duplicated here.
+  // The chat packet shape lives in src/actions.js.
   const { name, params } = buildChatPacket({ message, username, xuid: session.selfXuid })
   client.write(name, params)
   log.info('chat.out', message)

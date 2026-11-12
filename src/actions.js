@@ -99,10 +99,9 @@ export function buildSelectSlotPacket({ slot }) {
  * @returns {Array<{name: string, params: object}>}
  */
 export function buildBreakBlockPackets({ runtimeEntityId, x, y, z, face }) {
-  // NOT `Number.isInteger`: `runtime_entity_id` is a varint64 and decodes to a
-  // `BigInt` on a real session (`Number.isInteger(7n) === false`), so the old
-  // guard would have refused EVERY live break_block — with a message blaming a
-  // missing argument rather than its type.
+  // `isIdLike` accepts a number or a BigInt, not just `Number.isInteger`:
+  // `runtime_entity_id` is a varint64 and decodes to a `BigInt` on a real
+  // session (`Number.isInteger(7n) === false`).
   must('break_block', isIdLike(runtimeEntityId), 'runtimeEntityId is required (a number or BigInt entity id)')
   must('break_block', isIntBlockCoords(x, y, z), 'x, y, z must be integer block coordinates')
   must('break_block', Number.isInteger(face) && face >= 0 && face <= 5, 'face must be an integer 0-5 (BlockFace)')

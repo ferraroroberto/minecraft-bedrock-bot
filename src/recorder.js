@@ -15,11 +15,10 @@
 // one — see test/recorder.test.js, which asserts on raw file bytes for a
 // broader set of secret-shaped keys than this pattern is built from.
 //
-// The key/cert/signature/hash/bearer roots were added deliberately, not
-// speculatively — BedrockX's own auth flow sends a `publicKey` field
-// (node_modules/bedrockx/src/client/auth.js:8, `{ publicKey: client.
-// clientX509 }`), i.e. this client's ECDH handshake already carries
-// key/certificate-shaped fields the original three-word list did not cover.
+// The key/cert/signature/hash/bearer roots exist because BedrockX's own auth
+// flow sends a `publicKey` field (node_modules/bedrockx/src/client/auth.js:8,
+// `{ publicKey: client.clientX509 }`), i.e. this client's ECDH handshake
+// carries key/certificate-shaped fields.
 import fs from 'node:fs'
 import path from 'node:path'
 

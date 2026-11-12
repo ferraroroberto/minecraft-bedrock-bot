@@ -1,13 +1,13 @@
 // Client version resolution.
 //
-// These were hardcoded in the spike (`1.26.30` / `1001`), which meant the bot
-// would break the day Mojang shipped an update, with an opaque `6020` from the
+// A hardcoded version/protocol pair drifts from what the client can speak: the
+// day Mojang ships an update the bot fails with an opaque `6020` from the
 // Realms API and nothing pointing at the cause.
 //
 // `minecraft-data` is already in the tree — it is a BedrockX dependency and the
 // source of the protocol definitions the client actually speaks. Deriving both
 // constants from it means we can never announce a version the client cannot
-// speak, which a hardcoded pair can drift into silently.
+// speak.
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
