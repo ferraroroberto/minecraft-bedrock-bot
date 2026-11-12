@@ -26,6 +26,18 @@ test('every gate ratchet is vendored: the script exists and is declared in [vend
   }
 })
 
+test('README.md and CLAUDE.md describe every gate ratchet and the real stage range', () => {
+  const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8')
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  for (const name of RATCHETS) {
+    const prose = new RegExp(name.replace(/_ratchet$/, '').replaceAll('_', '[-_ ]'))
+    assert.match(readme, prose, `README.md does not mention the ${name} stage`)
+    assert.match(claude, prose, `CLAUDE.md does not mention the ${name} stage`)
+  }
+  // Stage 1 is the syntax check and stage 2 the tests; the ratchets follow.
+  assert.ok(claude.includes(`stages 3–${RATCHETS.length + 2}`), 'CLAUDE.md states a stale ratchet stage range')
+})
+
 test('only exit 0 passes a ratchet stage; exit 3 (NOT CONFIRMED) fails like exit 1', () => {
   assert.equal(ratchetPassed(0), true)
   for (const status of [1, 2, 3, null]) assert.equal(ratchetPassed(status), false, `exit ${status} must fail the gate`)
