@@ -27,8 +27,9 @@
 //      functions, classes and methods that nothing references. Same Python and
 //      exit rule; it has nothing of its own to scan while the repo's code is JS.
 //  10. The vendored conventions ratchet (scripts/conventions_ratchet.py): the
-//      no-window and no-drive-path rules over tracked Python. Same Python and
-//      exit rule, and likewise nothing of its own to scan while the code is JS.
+//      rules `.fleet.toml` enables. The state rules read the JS modules in
+//      src/ against the declared `session-end` machine; the others guard
+//      tracked Python. Same Python and exit rule as the other ratchets.
 //  11. The vendored runtime write ratchet (scripts/runtime_write_ratchet.py): a
 //      Python write target resolving under a code folder. Same Python and exit
 //      rule; its --snapshot/--probe pair also brackets stage 2, failing on any
