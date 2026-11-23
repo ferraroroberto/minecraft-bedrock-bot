@@ -35,6 +35,8 @@ instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 conventions_readers = { src = "scripts/conventions_readers.py", sha = "7577aece617ad366e7df8ef522d511184b445144", dest = "scripts/conventions_readers.py" }
 conventions_state = { src = "scripts/conventions_state.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/conventions_state.py" }
+request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "2e2a4cca9d3180980db6f8cd7f03a6f12737b7db", dest = "scripts/request_budget_ratchet.py" }
+request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "2e2a4cca9d3180980db6f8cd7f03a6f12737b7db", dest = "scripts/request_budget_scan.py" }
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. `npm run
 # verify` runs scripts/structure_ratchet.py and fails when a new file passes 1,000
@@ -178,3 +180,19 @@ derive = "classifySessionEnd"
 [runtime_write_ratchet]
 enabled  = true
 baseline = ".runtime-write-ratchet-baseline.json"
+
+# [request_budget_ratchet] -- the scaffold's baseline-and-ratchet stage for polling
+# and background-loop waste. `npm run verify` runs scripts/request_budget_ratchet.py
+# and fails when a file's count for a request-budget rule rises above
+# .request-budget-ratchet-baseline.json. It reads browser JavaScript and server
+# Python; this repo is a headless Node CLI with no HTTP server and no Python code of
+# its own, so it has nothing in scope today and the baseline records no entries. It
+# guards a Python helper or an HTTP surface added later. Exit 3 (git unusable, an
+# unreadable file, a Python file that does not parse) fails the gate. Needs Python
+# 3.11+ (tomllib). Procedure: project-scaffolding docs/request-budget-ratchet.md.
+#   handler-dirs   not declared, so scan-per-request is OFF: there is no request handler.
+#   timing-middleware  needs a FastAPI or Starlette app; the repo has none, so it never hits.
+#   no [[request_budget.loops]]  declared: no Python loop runs here.
+[request_budget_ratchet]
+enabled  = true
+baseline = ".request-budget-ratchet-baseline.json"

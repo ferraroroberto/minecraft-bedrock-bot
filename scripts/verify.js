@@ -34,6 +34,10 @@
 //      Python write target resolving under a code folder. Same Python and exit
 //      rule; its --snapshot/--probe pair also brackets stage 2, failing on any
 //      untracked or ignored file the tests leave under a code folder.
+//  12. The vendored request budget ratchet (scripts/request_budget_ratchet.py):
+//      fixed-rate polls, short unwatched loops and default-pool use in browser
+//      JavaScript and server Python. Same Python and exit rule; this repo has no
+//      HTTP server and no Python code of its own, so its baseline is empty.
 //
 // Plain node, no shell: it must run identically on the Windows tower and on the
 // Mac Mini, which is the production host. That is why there is no
