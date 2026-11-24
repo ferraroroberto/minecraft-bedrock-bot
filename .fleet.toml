@@ -19,23 +19,23 @@ shape       = "node"
 # [vendored] -- components copied byte-for-byte from project-scaffolding, with the
 # scaffold commit each came from. Re-vendor through /propagate-vendored, never by hand.
 [vendored]
-structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/structure_ratchet.py" }
+structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/structure_ratchet.py" }
 structure_layout = { src = "scripts/structure_layout.py", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "scripts/structure_layout.py" }
 structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "scripts/structure_band.py" }
-instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "scripts/instruction_ratchet.py" }
-doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "a68f6e49393f0ef0b94ab3c79f4338a50d89fa49", dest = "scripts/doc_refs_ratchet.py" }
-static_ratchet = { src = "scripts/static_ratchet.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/static_ratchet.py" }
-docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "78635aa74a92b9622326cb53992e0634fbaf6246", dest = "scripts/docs_ratchet.py" }
-comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "1ed07ddb5002d4513adf0ce45f1bfaf68f3acc32", dest = "scripts/comment_ratchet.py" }
-dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/dead_code_ratchet.py" }
-conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "9f5d6b727d457616ce80e18db9f5a048ab53c3be", dest = "scripts/conventions_ratchet.py" }
-runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/runtime_write_ratchet.py" }
+instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/instruction_ratchet.py" }
+doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/doc_refs_ratchet.py" }
+static_ratchet = { src = "scripts/static_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/static_ratchet.py" }
+docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/docs_ratchet.py" }
+comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/comment_ratchet.py" }
+dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/dead_code_ratchet.py" }
+conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/conventions_ratchet.py" }
+runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/runtime_write_ratchet.py" }
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "ce64203b017ba636c82737ee7f768c9ef6f422cd", dest = "scripts/runtime_write_resolve.py" }
 instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_frontmatter.py" }
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 conventions_readers = { src = "scripts/conventions_readers.py", sha = "9f5d6b727d457616ce80e18db9f5a048ab53c3be", dest = "scripts/conventions_readers.py" }
 conventions_state = { src = "scripts/conventions_state.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/conventions_state.py" }
-request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "2e2a4cca9d3180980db6f8cd7f03a6f12737b7db", dest = "scripts/request_budget_ratchet.py" }
+request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/request_budget_ratchet.py" }
 request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "2e2a4cca9d3180980db6f8cd7f03a6f12737b7db", dest = "scripts/request_budget_scan.py" }
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. `npm run
@@ -46,9 +46,11 @@ request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "2e2a4cca9
 # baselined at today's size, never excluded. Exit 3 (git unusable, an unparseable
 # file, an unknown shape) fails the gate. Procedure: project-scaffolding
 # docs/structure-ratchet.md.
+ratchet_baseline = { src = "scripts/ratchet_baseline.py", sha = "48db2132dab2dfc38b6154948ca17fd1f4b9232f", dest = "scripts/ratchet_baseline.py" }
+
 [structure_ratchet]
 enabled  = true
-baseline = ".structure-ratchet-baseline.json"
+baseline = ".ratchets/structure.json"
 
 # [instruction_ratchet] -- the scaffold's baseline-and-ratchet stage for the
 # deterministic prompt-audit rules over CLAUDE.md and AGENTS.md. `npm run verify`
@@ -59,7 +61,7 @@ baseline = ".structure-ratchet-baseline.json"
 # docs/instruction-ratchet.md.
 [instruction_ratchet]
 enabled  = true
-baseline = ".instruction-ratchet-baseline.json"
+baseline = ".ratchets/instruction.json"
 ci_expectations = true
 agents_pointer = true
 repeated_text_words = 12
@@ -74,7 +76,7 @@ repeated_text_words = 12
 [doc_refs_ratchet]
 enabled  = true
 trees    = true
-baseline = ".doc-refs-ratchet-baseline.json"
+baseline = ".ratchets/doc-refs.json"
 # allow_refs names paths on purpose that are not in this tree: the BedrockX files
 # the patch edits (they live under node_modules/bedrockx/src, which this repo
 # does not track; docs/setup-and-machines.md, docs/gotchas.md) and the gate
@@ -100,7 +102,7 @@ allow_refs = [
 # docs/static-ratchet.md.
 [static_ratchet]
 enabled  = true
-baseline = ".static-ratchet-baseline.json"
+baseline = ".ratchets/static.json"
 
 # [docs_ratchet] -- the scaffold's baseline-and-ratchet stage for the README and
 # docs convention. `npm run verify` runs scripts/docs_ratchet.py and fails when the
@@ -111,7 +113,7 @@ baseline = ".static-ratchet-baseline.json"
 # project-scaffolding docs/docs-ratchet.md.
 [docs_ratchet]
 enabled  = true
-baseline = ".docs-ratchet-baseline.json"
+baseline = ".ratchets/docs.json"
 
 # [comment_ratchet] -- the scaffold's baseline-and-ratchet stage for history in code
 # comments. `npm run verify` runs scripts/comment_ratchet.py and fails when a
@@ -121,7 +123,7 @@ baseline = ".docs-ratchet-baseline.json"
 # 3.11+ (tomllib). Procedure: project-scaffolding docs/comment-ratchet.md.
 [comment_ratchet]
 enabled  = true
-baseline = ".comment-ratchet-baseline.json"
+baseline = ".ratchets/comment.json"
 docstrings = true
 history_phrases = true
 
@@ -135,7 +137,7 @@ history_phrases = true
 # project-scaffolding docs/dead-code-ratchet.md.
 [dead_code_ratchet]
 enabled  = true
-baseline = ".dead-code-ratchet-baseline.json"
+baseline = ".ratchets/dead-code.json"
 
 # [conventions_ratchet] -- the scaffold's baseline-and-ratchet stage for fleet
 # conventions held as Python `ast` rules. `npm run verify` runs
@@ -157,7 +159,7 @@ baseline = ".dead-code-ratchet-baseline.json"
 #   secret-compare, git-wrapper  left off: the repo has neither helper.
 [conventions_ratchet]
 enabled  = true
-baseline = ".conventions-ratchet-baseline.json"
+baseline = ".ratchets/conventions.json"
 rules    = ["no-window", "no-drive-path", "subprocess-timeout", "browser-per-iteration", "state-literal", "state-set-repeat", "state-write", "path-sep"]
 
 # [[state_machines]] -- the one machine this repo declares. src/session-end.js owns
@@ -179,7 +181,7 @@ derive = "classifySessionEnd"
 # run left under a code folder. Mechanism: project-scaffolding docs/runtime-write-ratchet.md.
 [runtime_write_ratchet]
 enabled  = true
-baseline = ".runtime-write-ratchet-baseline.json"
+baseline = ".ratchets/runtime-write.json"
 
 # [request_budget_ratchet] -- the scaffold's baseline-and-ratchet stage for polling
 # and background-loop waste. `npm run verify` runs scripts/request_budget_ratchet.py
@@ -195,4 +197,4 @@ baseline = ".runtime-write-ratchet-baseline.json"
 #   no [[request_budget.loops]]  declared: no Python loop runs here.
 [request_budget_ratchet]
 enabled  = true
-baseline = ".request-budget-ratchet-baseline.json"
+baseline = ".ratchets/request-budget.json"
